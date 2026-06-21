@@ -75,17 +75,17 @@ function layout(content) {
   const role = state.profile?.role;
   appEl.innerHTML = html`
     <header class="topbar">
-      <div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Career Application & Review Portal</span></div></div>
+      <div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div>
       <nav>
-        ${registered() ? `<a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>` : `<a href="#/">Home</a>`}
+        ${registered() ? `<a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>` : `<a href="#/">Home</a><a href="#/signin">Sign In</a>`}
         ${canStaff() ? `<a href="#/review">Review</a>` : ''}
         ${canExecutive() ? `<a href="#/executive">Executive</a>` : ''}
         ${role === 'owner' ? `<a href="#/owner">Owner</a>` : ''}
-        ${registered() ? `<span class="muted">${escapeHtml(state.profile.discordUsername)}</span>` : `<a href="#/register">Create Account</a>`}
+        ${registered() ? `<span class="muted">${escapeHtml(state.profile.discordUsername)}</span>` : `<a class="nav-cta" href="#/register">Create Account</a>`}
       </nav>
     </header>
     <main>${content}</main>
-    <footer>© Cognitus Solutions · No emails collected · Secured with Firebase Anonymous Auth + Firestore role rules.</footer>
+    <footer>© Cognitus Solutions · Careers Portal</footer>
   `;
 }
 
@@ -94,7 +94,7 @@ function authSetupScreen() {
     <section class="panel wide setup-panel">
       <p class="eyebrow">Firebase Setup Needed</p>
       <h1>Anonymous Auth is disabled.</h1>
-      <p class="lead">The portal cannot create secure browser sessions until Anonymous sign-in is enabled in Firebase Authentication.</p>
+      <p class="lead">Turn on Anonymous sign-in in Firebase so the portal can create browser-based accounts without collecting emails.</p>
       <div class="notice"><strong>Error:</strong> ${escapeHtml(state.authError?.code || state.authError?.message || 'Unknown Firebase Auth error')}</div>
       <div class="setup-steps">
         <div><strong>1</strong><span>Open Firebase Console</span></div>
@@ -102,7 +102,7 @@ function authSetupScreen() {
         <div><strong>3</strong><span>Open Sign-in method</span></div>
         <div><strong>4</strong><span>Enable Anonymous</span></div>
       </div>
-      <p class="muted">This does not collect emails. It only lets Firestore know which browser session owns which profile and applications.</p>
+      <p class="muted">Anonymous Auth only gives Firestore a secure session ID. It does not ask for or store email addresses.</p>
     </section>
   `);
 }
@@ -111,12 +111,12 @@ function hero() {
   layout(html`
     <section class="hero">
       <div>
-        <p class="eyebrow">Official Cognitus Solutions Careers Portal</p>
-        <h1>Apply, track, review, and manage Cognitus hiring.</h1>
-        <p class="lead">This free-plan version uses Firebase Anonymous Auth for Firestore security. No emails are collected.</p>
-        <div class="actions"><a class="button" href="#/register">Create Applicant Account</a><a class="button secondary" href="#/dashboard">Dashboard</a><a class="button quiet" href="#/bootstrap">Owner Bootstrap</a></div>
+        <p class="eyebrow">Cognitus Solutions Careers</p>
+        <h1>Find your place at Cognitus.</h1>
+        <p class="lead">Apply for open roles, check your status, and keep your application history in one place.</p>
+        <div class="actions"><a class="button" href="#/signin">Sign In</a><a class="button secondary" href="#/register">Create Account</a></div>
       </div>
-      <div class="hero-card"><h3>Important</h3><p>This free-plan setup is much safer than open rules, but accounts are tied to the current browser/device unless you later upgrade to Discord OAuth or Functions-backed login.</p></div>
+      <div class="hero-card"><h3>For applicants</h3><p>Create an account, apply once per role, and return later to see where your application stands.</p></div>
     </section>
   `);
 }
@@ -128,8 +128,8 @@ function registerScreen() {
   layout(html`
     <section class="panel narrow">
       <p class="eyebrow">Applicant Registration</p>
-      <h1>Create your Cognitus account</h1>
-      <p class="muted">No email is collected. This account is attached to this browser's anonymous Firebase sign-in.</p>
+      <h1>Create your account</h1>
+      <p class="muted">No email is required. Your account is connected to this browser session.</p>
       <form id="registerForm" class="form">
         <label>Discord Username<input name="discordUsername" placeholder="Executive_Eagle" required /></label>
         <label>Discord User ID<input name="discordId" placeholder="123456789012345678" required /></label>
