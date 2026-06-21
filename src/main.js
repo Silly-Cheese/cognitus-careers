@@ -23,7 +23,7 @@ const roles = ['applicant', 'reviewer', 'seniorReviewer', 'hiringLead', 'executi
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const executiveRoles = ['executive', 'owner'];
 
-const state = { firebaseUser: null, profile: null, authReady: false };
+const state = { firebaseUser: null, profile: null, authReady: false, draftQuestions: [] };
 
 window.addEventListener('hashchange', render);
 
@@ -40,9 +40,7 @@ onAuthStateChanged(auth, async (user) => {
 
 function routeTo(path) { window.location.hash = path; }
 function html(strings, ...values) { return strings.map((s, i) => s + (values[i] ?? '')).join(''); }
-function escapeHtml(value = '') {
-  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-}
+function escapeHtml(value = '') { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 function normalizeDiscordId(value) {
   const id = String(value || '').trim();
   if (!/^\d{10,25}$/.test(id)) throw new Error('Enter a valid numeric Discord user ID.');
@@ -52,9 +50,7 @@ async function loadProfile(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? { uid, ...snap.data() } : null;
 }
-async function refreshProfile() {
-  state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null;
-}
+async function refreshProfile() { state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null; }
 function badge(value) { return `<span class="badge badge-${String(value || 'unknown').replaceAll(' ', '-').toLowerCase()}">${escapeHtml(value || 'Unknown')}</span>`; }
 function canStaff() { return state.profile && staffRoles.includes(state.profile.role); }
 function canExecutive() { return state.profile && executiveRoles.includes(state.profile.role); }
@@ -311,21 +307,114 @@ async function reviewApplication(appId) {
   });
 }
 
+function renderQuestionList() {
+  const list = document.querySelector('#questionList');
+  if (!list) return;
+  list.innerHTML = state.draftQuestions.length
+    ? state.draftQuestions.map((q, index) => `<div class="question-row"><span><strong>Q${index + 1}.</strong> ${escapeHtml(q)}</span><button class="button small quiet" type="button" data-remove-question="${index}">Remove</button></div>`).join('')
+    : '<p class="muted">No questions added yet. Click Add Question to add one.</p>';
+  document.querySelectorAll('[data-remove-question]').forEach((btn) => btn.addEventListener('click', () => {
+    state.draftQuestions.splice(Number(btn.dataset.removeQuestion), 1);
+    renderQuestionList();
+  }));
+}
+
+function openApplicationModal() {
+  state.draftQuestions = [];
+  document.body.insertAdjacentHTML('beforeend', html`
+    <div class="modal-backdrop" id="applicationModal">
+      <div class="modal-card">
+        <div class="row"><div><p class="eyebrow">Executive Tool</p><h2>Create Application</h2></div><button class="button small quiet" type="button" id="closeApplicationModal">Close</button></div>
+        <form id="formCreator" class="form">
+          <label>Position Title<input name="title" required placeholder="Hiring Specialist" /></label>
+          <label>Department<input name="department" placeholder="Human Resources" /></label>
+          <label>Description<textarea name="description" rows="4" required placeholder="Describe the position and what this person will do."></textarea></label>
+          <label>Requirements, one per line<textarea name="requirements" rows="4" placeholder="Professional communication\nAble to follow policy\nAvailable weekly"></textarea></label>
+          <div class="question-builder">
+            <div class="row"><h3>Application Questions</h3><button class="button secondary small" type="button" id="addQuestionBtn">Add Question</button></div>
+            <div id="questionList"></div>
+          </div>
+          <label>Max Openings<input name="maxOpenings" type="number" min="0" placeholder="0 for unlimited / unknown" /></label>
+          <label>Status<select name="status"><option value="draft">Draft</option><option value="open">Open</option><option value="closed">Closed</option></select></label>
+          <div class="actions"><button class="button" type="submit">Create Application</button><button class="button secondary" type="button" id="cancelApplicationModal">Cancel</button></div>
+        </form>
+        <div id="createMessage"></div>
+      </div>
+    </div>
+  `);
+  renderQuestionList();
+  const closeModal = () => document.querySelector('#applicationModal')?.remove();
+  document.querySelector('#closeApplicationModal').addEventListener('click', closeModal);
+  document.querySelector('#cancelApplicationModal').addEventListener('click', closeModal);
+  document.querySelector('#addQuestionBtn').addEventListener('click', () => {
+    const question = prompt('Enter the application question:');
+    if (question && question.trim()) {
+      state.draftQuestions.push(question.trim());
+      renderQuestionList();
+    }
+  });
+  document.querySelector('#formCreator').addEventListener('submit', createApplicationForm);
+}
+
+async function createApplicationForm(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const message = document.querySelector('#createMessage');
+  message.innerHTML = '<p class="muted">Creating application...</p>';
+  try {
+    if (!canExecutive()) throw new Error('You must be an executive or owner to create applications.');
+    const title = String(data.get('title') || '').trim();
+    if (!title) throw new Error('Position title is required.');
+    if (state.draftQuestions.length === 0) throw new Error('Add at least one application question.');
+    const payload = {
+      title,
+      department: String(data.get('department') || 'General').trim() || 'General',
+      description: String(data.get('description') || '').trim(),
+      requirements: String(data.get('requirements') || '').split('\n').map((x) => x.trim()).filter(Boolean),
+      questions: state.draftQuestions.map((question, index) => ({ id: `q${index + 1}`, type: 'longText', question })),
+      maxOpenings: Number(data.get('maxOpenings') || 0),
+      status: data.get('status') || 'draft',
+      visibility: 'public',
+      finalApprovalRequired: true,
+      createdBy: state.profile.uid,
+      createdByUsername: state.profile.discordUsername,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    await addDoc(collection(db, 'application_forms'), payload);
+    message.innerHTML = '<p class="notice"><strong>Created.</strong> The application has been saved.</p>';
+    setTimeout(() => routeTo('#/executive'), 350);
+  } catch (error) {
+    message.innerHTML = `<p class="error"><strong>Application was not created.</strong><br>${escapeHtml(error.message)}</p>`;
+  }
+}
+
 async function executiveConsole() {
   if (!requireProfile()) return;
   if (!canExecutive()) return layout('<section class="panel"><h1>Access denied</h1></section>');
   const formsSnap = await getDocs(query(collection(db, 'application_forms'), orderBy('createdAt', 'desc')));
   const forms = formsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  layout(html`<section class="page-head"><h1>Executive Application Controls</h1><p class="muted">Create, open, close, and archive Cognitus applications.</p></section><section class="grid two"><div class="panel"><h2>Create Application</h2><form id="formCreator" class="form"><label>Position Title<input name="title" required /></label><label>Department<input name="department" placeholder="Human Resources" /></label><label>Description<textarea name="description" rows="4" required></textarea></label><label>Requirements, one per line<textarea name="requirements" rows="4"></textarea></label><label>Questions, one per line<textarea name="questions" rows="6" required></textarea></label><label>Max Openings<input name="maxOpenings" type="number" min="1" /></label><label>Status<select name="status"><option>draft</option><option>open</option><option>closed</option></select></label><button class="button">Create Application</button></form></div><div class="panel"><h2>Manage Forms</h2>${forms.map((form) => `<div class="mini-card"><div><strong>${escapeHtml(form.title)}</strong><p>${escapeHtml(form.department || 'General')} · ${badge(form.status)}</p></div><div class="actions"><button class="button small" data-status="open" data-form="${form.id}">Open</button><button class="button small secondary" data-status="closed" data-form="${form.id}">Close</button><button class="button small quiet" data-status="archived" data-form="${form.id}">Archive</button></div></div>`).join('') || '<p class="muted">No forms created yet.</p>'}</div></section>`);
-  document.querySelector('#formCreator').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const title = String(data.get('title')).trim();
-    const id = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`;
-    await setDoc(doc(db, 'application_forms', id), { title, department: data.get('department') || 'General', description: data.get('description') || '', requirements: String(data.get('requirements') || '').split('\n').map((x) => x.trim()).filter(Boolean), questions: String(data.get('questions') || '').split('\n').map((question, index) => ({ id: `q${index + 1}`, type: 'longText', question: question.trim() })).filter((q) => q.question), maxOpenings: Number(data.get('maxOpenings') || 0), status: data.get('status') || 'draft', visibility: 'public', finalApprovalRequired: true, createdBy: state.profile.uid, createdByUsername: state.profile.discordUsername, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    routeTo('#/executive');
-  });
-  document.querySelectorAll('[data-status]').forEach((btn) => btn.addEventListener('click', async () => { await updateDoc(doc(db, 'application_forms', btn.dataset.form), { status: btn.dataset.status, updatedAt: serverTimestamp() }); routeTo('#/executive'); }));
+  layout(html`
+    <section class="page-head">
+      <div><h1>Executive Application Controls</h1><p class="muted">Create, open, close, and archive Cognitus applications.</p></div>
+      <button class="button" id="openApplicationModal">Create Application</button>
+    </section>
+    <section class="panel">
+      <h2>Manage Forms</h2>
+      <div id="executiveMessage"></div>
+      ${forms.map((form) => `<div class="mini-card"><div><strong>${escapeHtml(form.title)}</strong><p>${escapeHtml(form.department || 'General')} · ${badge(form.status)}</p><p class="muted">${escapeHtml((form.questions || []).length)} question(s)</p></div><div class="actions"><button class="button small" data-status="open" data-form="${form.id}">Open</button><button class="button small secondary" data-status="closed" data-form="${form.id}">Close</button><button class="button small quiet" data-status="archived" data-form="${form.id}">Archive</button></div></div>`).join('') || '<p class="muted">No forms created yet.</p>'}
+    </section>
+  `);
+  document.querySelector('#openApplicationModal').addEventListener('click', openApplicationModal);
+  document.querySelectorAll('[data-status]').forEach((btn) => btn.addEventListener('click', async () => {
+    const msg = document.querySelector('#executiveMessage');
+    try {
+      await updateDoc(doc(db, 'application_forms', btn.dataset.form), { status: btn.dataset.status, updatedAt: serverTimestamp() });
+      routeTo('#/executive');
+    } catch (error) {
+      msg.innerHTML = `<p class="error">Could not update application status: ${escapeHtml(error.message)}</p>`;
+    }
+  }));
 }
 
 async function ownerConsole() {
