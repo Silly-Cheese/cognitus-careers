@@ -1,7 +1,7 @@
 import './mobile-fix.css';
 import './header-actions.js';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
 
 const root = document.querySelector('#app');
@@ -14,6 +14,7 @@ let ready = false;
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const go = path => { location.hash = path; };
 const staff = () => profile && staffRoles.includes(profile.role);
+const owner = () => profile?.role === 'owner';
 const canFinalDecision = () => profile && finalDecisionRoles.includes(profile.role);
 const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(v || 'Unknown')}</span>`;
 const timeValue = value => value?.toMillis ? value.toMillis() : 0;
@@ -33,7 +34,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v5</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v6</footer>`;
 }
 
 function routeParts() {
@@ -57,9 +58,10 @@ async function reviewQueue() {
   try {
     const snap = await getDocs(collection(db, 'applications'));
     const apps = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
-    const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}<br><span class="muted">${esc(app.applicantDiscordId || '')}</span></td><td>${badge(app.status)}</td><td>${esc(app.reviewerRecommendation || 'None')}</td><td><button class="button small" data-open-review="${app.id}">Open</button></td></tr>`).join('') || '<tr><td colspan="5">No applications have been submitted yet.</td></tr>';
-    shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Review submitted applications and add internal notes.</p></div></section><section class="panel"><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th>Recommendation</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
+    const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}<br><span class="muted">${esc(app.applicantDiscordId || '')}</span></td><td>${badge(app.status)}</td><td>${esc(app.reviewerRecommendation || 'None')}</td><td><div class="actions"><button class="button small" data-open-review="${app.id}">Open</button>${owner() ? `<button class="button small quiet" data-delete-response="${app.id}" data-applicant="${esc(app.applicantDiscordUsername || 'this applicant')}">Delete Response</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5">No applications have been submitted yet.</td></tr>';
+    shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Review submitted applications and add internal notes.</p></div></section><section class="panel"><div id="reviewQueueMsg"></div><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th>Recommendation</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
     document.querySelectorAll('[data-open-review]').forEach(btn => btn.onclick = () => go(`#/review/${btn.dataset.openReview}`));
+    document.querySelectorAll('[data-delete-response]').forEach(btn => btn.onclick = () => deleteApplicationResponse(btn.dataset.deleteResponse, btn.dataset.applicant, '#reviewQueueMsg'));
   } catch (error) {
     shell(`<section class="panel wide"><h1>Could not load review queue</h1><p class="error">${esc(error.message)}</p><p class="muted">Signed in as ${esc(profile.discordUsername)} with role ${esc(profile.role)}.</p></section>`);
   }
@@ -93,6 +95,32 @@ function conflictDisclosureCard(app) {
   return `<h3>Conflict of Interest Disclosure</h3><div class="answer"><strong>Applicant Disclosure</strong><p>${disclosure ? esc(disclosure) : 'No conflict disclosure provided.'}</p></div>`;
 }
 
+function ownerDangerZone(app) {
+  if (!owner()) return '';
+  return `<section class="notice"><h3>Owner Danger Zone</h3><p class="muted">Delete this submitted application response. This removes the application record and attempts to remove related internal review notes.</p><button class="button quiet" id="deleteThisResponse">Delete Application Response</button></section>`;
+}
+
+async function deleteApplicationResponse(appId, applicantName = 'this applicant', messageSelector = '#reviewMsg') {
+  if (!owner()) return;
+  const confirmed = confirm(`Delete the application response from ${applicantName}? This cannot be undone.`);
+  if (!confirmed) return;
+  const msg = document.querySelector(messageSelector);
+  if (msg) msg.innerHTML = '<p class="muted">Deleting application response...</p>';
+  try {
+    try {
+      const notesSnap = await getDocs(query(collection(db, 'review_notes'), where('applicationId', '==', appId)));
+      await Promise.all(notesSnap.docs.map(note => deleteDoc(doc(db, 'review_notes', note.id))));
+    } catch (error) {
+      console.warn('Could not delete related review notes. Continuing with response deletion.', error);
+    }
+    await deleteDoc(doc(db, 'applications', appId));
+    if (msg) msg.innerHTML = '<p class="notice"><strong>Deleted.</strong> Application response removed.</p>';
+    setTimeout(() => go('#/review'), 500);
+  } catch (error) {
+    if (msg) msg.innerHTML = `<p class="error">Could not delete response: ${esc(error.message)}</p>`;
+  }
+}
+
 async function reviewOne(appId) {
   shell('<section class="panel"><h1>Opening review...</h1><p class="muted">Loading application details.</p></section>');
   try {
@@ -110,8 +138,9 @@ async function reviewOne(appId) {
     } catch (error) {
       console.warn('Notes failed to load.', error);
     }
-    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div>${applicantInfoCard(app, applicantProfile)}${conflictDisclosureCard(app)}<h3>Application Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
+    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div>${applicantInfoCard(app, applicantProfile)}${conflictDisclosureCard(app)}<h3>Application Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}${ownerDangerZone(app)}<div id="reviewMsg"></div></section>`);
     if (canFinalDecision()) document.querySelector('[name="status"]').value = app.status || 'submitted';
+    document.querySelector('#deleteThisResponse')?.addEventListener('click', () => deleteApplicationResponse(appId, app.applicantDiscordUsername || 'this applicant', '#reviewMsg'));
     document.querySelector('#reviewForm').onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
