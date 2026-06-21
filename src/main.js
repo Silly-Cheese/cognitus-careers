@@ -1,4 +1,5 @@
 import './styles.css';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import {
   addDoc,
   collection,
@@ -11,117 +12,70 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
-import { db } from './firebase.js';
+import { auth, db } from './firebase.js';
 
 const appEl = document.querySelector('#app');
-const SESSION_KEY = 'ctg_session_uid';
 const BOOTSTRAP_KEY = 'CognitusOwnerSetup2026';
 const roles = ['applicant', 'reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const executiveRoles = ['executive', 'owner'];
 
-const state = { profile: null };
+const state = { firebaseUser: null, profile: null, authReady: false };
 
 window.addEventListener('hashchange', render);
 
-function routeTo(path) {
-  window.location.hash = path;
-}
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    await signInAnonymously(auth);
+    return;
+  }
+  state.firebaseUser = user;
+  state.profile = await loadProfile(user.uid);
+  state.authReady = true;
+  render();
+});
 
-function html(strings, ...values) {
-  return strings.map((s, i) => s + (values[i] ?? '')).join('');
-}
-
+function routeTo(path) { window.location.hash = path; }
+function html(strings, ...values) { return strings.map((s, i) => s + (values[i] ?? '')).join(''); }
 function escapeHtml(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
-
 function normalizeDiscordId(value) {
   const id = String(value || '').trim();
   if (!/^\d{10,25}$/.test(id)) throw new Error('Enter a valid numeric Discord user ID.');
   return id;
 }
-
-function uidFromDiscordId(discordId) {
-  return `discord_${normalizeDiscordId(discordId)}`;
-}
-
-async function sha256(value) {
-  const bytes = new TextEncoder().encode(value);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(hashBuffer)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function passwordHash(discordId, password) {
-  return sha256(`ctg:${discordId}:${password}`);
-}
-
-async function loadSession() {
-  const uid = localStorage.getItem(SESSION_KEY);
-  if (!uid) return null;
+async function loadProfile(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
-  if (!snap.exists()) {
-    localStorage.removeItem(SESSION_KEY);
-    return null;
-  }
-  state.profile = { uid, ...snap.data() };
-  return state.profile;
+  return snap.exists() ? { uid, ...snap.data() } : null;
 }
-
-function setSession(uid) {
-  localStorage.setItem(SESSION_KEY, uid);
+async function refreshProfile() {
+  state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null;
 }
-
-function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
-  state.profile = null;
-}
-
-function badge(value) {
-  return `<span class="badge badge-${String(value || 'unknown').replaceAll(' ', '-').toLowerCase()}">${escapeHtml(value || 'Unknown')}</span>`;
-}
-
-function canStaff() {
-  return state.profile && staffRoles.includes(state.profile.role);
-}
-
-function canExecutive() {
-  return state.profile && executiveRoles.includes(state.profile.role);
-}
+function badge(value) { return `<span class="badge badge-${String(value || 'unknown').replaceAll(' ', '-').toLowerCase()}">${escapeHtml(value || 'Unknown')}</span>`; }
+function canStaff() { return state.profile && staffRoles.includes(state.profile.role); }
+function canExecutive() { return state.profile && executiveRoles.includes(state.profile.role); }
+function registered() { return !!state.profile; }
 
 function layout(content) {
-  const signedIn = !!state.profile;
   const role = state.profile?.role;
   appEl.innerHTML = html`
     <header class="topbar">
-      <div class="brand" onclick="location.hash='#/'">
-        <div class="brand-mark">C</div>
-        <div><strong>Cognitus Talent Gateway</strong><span>Career Application & Review Portal</span></div>
-      </div>
+      <div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Career Application & Review Portal</span></div></div>
       <nav>
-        ${signedIn ? `<a href="#/dashboard">Dashboard</a>` : `<a href="#/">Home</a>`}
-        ${signedIn ? `<a href="#/applications">Applications</a>` : ''}
+        ${registered() ? `<a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>` : `<a href="#/">Home</a>`}
         ${canStaff() ? `<a href="#/review">Review</a>` : ''}
         ${canExecutive() ? `<a href="#/executive">Executive</a>` : ''}
         ${role === 'owner' ? `<a href="#/owner">Owner</a>` : ''}
-        ${signedIn ? `<button class="ghost" id="logoutBtn">Sign Out</button>` : `<a href="#/signin">Sign In</a>`}
+        ${registered() ? `<span class="muted">${escapeHtml(state.profile.discordUsername)}</span>` : `<a href="#/register">Create Account</a>`}
       </nav>
     </header>
     <main>${content}</main>
-    <footer>© Cognitus Solutions · Free-plan Firestore version · No emails collected.</footer>
+    <footer>© Cognitus Solutions · No emails collected · Secured with Firebase Anonymous Auth + Firestore role rules.</footer>
   `;
-  document.querySelector('#logoutBtn')?.addEventListener('click', () => {
-    clearSession();
-    routeTo('#/');
-    render();
-  });
 }
 
 function hero() {
@@ -130,66 +84,49 @@ function hero() {
       <div>
         <p class="eyebrow">Official Cognitus Solutions Careers Portal</p>
         <h1>Apply, track, review, and manage Cognitus hiring.</h1>
-        <p class="lead">This version works on the Firebase free plan. Applicants use Discord ID + password. No emails are collected.</p>
-        <div class="actions"><a class="button" href="#/register">Create Applicant Account</a><a class="button secondary" href="#/signin">Sign In</a><a class="button quiet" href="#/bootstrap">Owner Bootstrap</a></div>
+        <p class="lead">This free-plan version uses Firebase Anonymous Auth for Firestore security. No emails are collected.</p>
+        <div class="actions"><a class="button" href="#/register">Create Applicant Account</a><a class="button secondary" href="#/dashboard">Dashboard</a><a class="button quiet" href="#/bootstrap">Owner Bootstrap</a></div>
       </div>
-      <div class="hero-card"><h3>Flow</h3><ol><li>Owner bootstraps the first owner account.</li><li>Executive creates and opens applications.</li><li>Applicants submit once per application.</li><li>Reviewers process applications.</li><li>Applicants track status.</li></ol></div>
+      <div class="hero-card"><h3>Important</h3><p>This free-plan setup is much safer than open rules, but accounts are tied to the current browser/device unless you later upgrade to Discord OAuth or Functions-backed login.</p></div>
     </section>
   `);
 }
 
-function authScreen(mode = 'signin') {
-  const isRegister = mode === 'register';
+function registerScreen() {
+  if (!state.authReady) return loading();
+  if (state.profile) return routeTo('#/dashboard');
   layout(html`
     <section class="panel narrow">
-      <p class="eyebrow">${isRegister ? 'Applicant Registration' : 'Portal Sign In'}</p>
-      <h1>${isRegister ? 'Create your Cognitus account' : 'Welcome back'}</h1>
-      <p class="muted">No emails are collected. Use your Discord User ID and password.</p>
-      <form id="authForm" class="form">
-        ${isRegister ? `<label>Discord Username<input name="discordUsername" placeholder="Executive_Eagle" required /></label>` : ''}
+      <p class="eyebrow">Applicant Registration</p>
+      <h1>Create your Cognitus account</h1>
+      <p class="muted">No email is collected. This account is attached to this browser's anonymous Firebase sign-in.</p>
+      <form id="registerForm" class="form">
+        <label>Discord Username<input name="discordUsername" placeholder="Executive_Eagle" required /></label>
         <label>Discord User ID<input name="discordId" placeholder="123456789012345678" required /></label>
-        ${isRegister ? `<label>Roblox Username, optional<input name="robloxUsername" placeholder="Executive_Eagle" /></label>` : ''}
-        <label>Password<input name="password" type="password" required minlength="8" /></label>
-        <button class="button" type="submit">${isRegister ? 'Create Account' : 'Sign In'}</button>
+        <label>Roblox Username, optional<input name="robloxUsername" placeholder="Executive_Eagle" /></label>
+        <button class="button" type="submit">Create Account</button>
       </form>
-      <p class="muted">${isRegister ? 'Already have an account?' : 'Need an account?'} <a href="${isRegister ? '#/signin' : '#/register'}">${isRegister ? 'Sign in' : 'Register here'}</a>.</p>
       <div id="formMessage"></div>
     </section>
   `);
-  document.querySelector('#authForm').addEventListener('submit', async (event) => {
+  document.querySelector('#registerForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const message = document.querySelector('#formMessage');
-    message.innerHTML = '<p class="muted">Processing...</p>';
     try {
+      const uid = state.firebaseUser.uid;
       const discordId = normalizeDiscordId(form.get('discordId'));
-      const uid = uidFromDiscordId(discordId);
-      const password = String(form.get('password') || '');
-      const credRef = doc(db, 'credentials', uid);
-      const credSnap = await getDoc(credRef);
-      if (isRegister) {
-        if (credSnap.exists()) throw new Error('An account already exists for that Discord ID. Please sign in.');
-        const discordUsername = String(form.get('discordUsername') || '').trim();
-        if (discordUsername.length < 2) throw new Error('Enter a valid Discord username.');
-        await setDoc(doc(db, 'users', uid), {
-          uid,
-          discordUsername,
-          discordId,
-          robloxUsername: String(form.get('robloxUsername') || '').trim(),
-          role: 'applicant',
-          accountStatus: 'active',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        await setDoc(credRef, { uid, discordId, passwordHash: await passwordHash(discordId, password), createdAt: serverTimestamp() });
-      } else {
-        if (!credSnap.exists()) throw new Error('No account exists for that Discord ID.');
-        const expected = credSnap.data().passwordHash;
-        const actual = await passwordHash(discordId, password);
-        if (expected !== actual) throw new Error('Incorrect Discord ID or password.');
-      }
-      setSession(uid);
-      await loadSession();
+      await setDoc(doc(db, 'users', uid), {
+        uid,
+        discordUsername: String(form.get('discordUsername') || '').trim(),
+        discordId,
+        robloxUsername: String(form.get('robloxUsername') || '').trim(),
+        role: 'applicant',
+        accountStatus: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      await refreshProfile();
       routeTo('#/dashboard');
     } catch (error) {
       message.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
@@ -198,17 +135,17 @@ function authScreen(mode = 'signin') {
 }
 
 function bootstrapScreen() {
+  if (!state.authReady) return loading();
   layout(html`
     <section class="panel narrow">
       <p class="eyebrow">Owner Bootstrap</p>
       <h1>Create the first owner account</h1>
-      <p class="muted">Free-plan version: enter the bootstrap key <strong>${BOOTSTRAP_KEY}</strong>. Bootstrap only works while no owner exists.</p>
+      <p class="muted">Bootstrap key: <strong>${BOOTSTRAP_KEY}</strong>. Firestore rules only allow this before the owner lock is created.</p>
       <form id="bootstrapForm" class="form">
         <label>Bootstrap Key<input name="setupKey" required /></label>
         <label>Discord Username<input name="discordUsername" value="Executive_Eagle" required /></label>
         <label>Discord User ID<input name="discordId" required /></label>
         <label>Roblox Username<input name="robloxUsername" value="Executive_Eagle" /></label>
-        <label>Password<input name="password" type="password" required minlength="8" /></label>
         <button class="button" type="submit">Bootstrap Owner</button>
       </form>
       <div id="formMessage"></div>
@@ -218,18 +155,14 @@ function bootstrapScreen() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const message = document.querySelector('#formMessage');
-    message.innerHTML = '<p class="muted">Creating owner...</p>';
     try {
       if (String(form.get('setupKey')) !== BOOTSTRAP_KEY) throw new Error('Invalid bootstrap key.');
-      const owners = await getDocs(query(collection(db, 'users'), where('role', '==', 'owner'), limit(1)));
-      if (!owners.empty) throw new Error('An owner already exists. Bootstrap is locked.');
-      const discordId = normalizeDiscordId(form.get('discordId'));
-      const uid = uidFromDiscordId(discordId);
-      const password = String(form.get('password') || '');
-      await setDoc(doc(db, 'users', uid), {
+      const uid = state.firebaseUser.uid;
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'users', uid), {
         uid,
         discordUsername: String(form.get('discordUsername') || '').trim(),
-        discordId,
+        discordId: normalizeDiscordId(form.get('discordId')),
         robloxUsername: String(form.get('robloxUsername') || '').trim(),
         role: 'owner',
         accountStatus: 'active',
@@ -238,10 +171,10 @@ function bootstrapScreen() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      await setDoc(doc(db, 'credentials', uid), { uid, discordId, passwordHash: await passwordHash(discordId, password), createdAt: serverTimestamp() });
-      await addDoc(collection(db, 'audit_logs'), { action: 'OWNER_BOOTSTRAPPED', performedBy: uid, targetId: uid, timestamp: serverTimestamp() });
-      setSession(uid);
-      await loadSession();
+      batch.set(doc(db, 'system', 'ownerBootstrap'), { createdBy: uid, createdAt: serverTimestamp(), locked: true });
+      batch.set(doc(collection(db, 'audit_logs')), { action: 'OWNER_BOOTSTRAPPED', performedBy: uid, targetId: uid, timestamp: serverTimestamp() });
+      await batch.commit();
+      await refreshProfile();
       routeTo('#/owner');
     } catch (error) {
       message.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
@@ -249,16 +182,15 @@ function bootstrapScreen() {
   });
 }
 
-function requireLogin() {
-  if (!state.profile) {
-    routeTo('#/signin');
-    return false;
-  }
+function requireProfile() {
+  if (!state.authReady) { loading(); return false; }
+  if (!state.profile) { routeTo('#/register'); return false; }
   return true;
 }
+function loading() { layout('<section class="panel"><h1>Loading...</h1></section>'); }
 
 async function dashboard() {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   const p = state.profile;
   layout(html`
     <section class="page-head"><div><p class="eyebrow">${escapeHtml(p.role)}</p><h1>Welcome, ${escapeHtml(p.discordUsername)}</h1><p class="muted">Discord ID: ${escapeHtml(p.discordId)}</p></div></section>
@@ -272,7 +204,7 @@ async function dashboard() {
 }
 
 async function applicantApplications() {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   const formsSnap = await getDocs(query(collection(db, 'application_forms'), orderBy('createdAt', 'desc')));
   const mySnap = await getDocs(query(collection(db, 'applications'), where('applicantUid', '==', state.profile.uid)));
   const myApps = new Map(mySnap.docs.map((d) => [d.data().formId, { id: d.id, ...d.data() }]));
@@ -292,7 +224,7 @@ async function applicantApplications() {
 }
 
 async function applyScreen(formId) {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   const formSnap = await getDoc(doc(db, 'application_forms', formId));
   if (!formSnap.exists()) return layout('<section class="panel"><h1>Application not found</h1></section>');
   const form = { id: formSnap.id, ...formSnap.data() };
@@ -339,7 +271,7 @@ async function applyScreen(formId) {
 }
 
 async function statusScreen(appId) {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   const snap = await getDoc(doc(db, 'applications', appId));
   if (!snap.exists()) return layout('<section class="panel"><h1>Application not found</h1></section>');
   const app = { id: snap.id, ...snap.data() };
@@ -348,7 +280,7 @@ async function statusScreen(appId) {
 }
 
 async function reviewQueue() {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   if (!canStaff()) return layout('<section class="panel"><h1>Access denied</h1></section>');
   const snap = await getDocs(query(collection(db, 'applications'), orderBy('updatedAt', 'desc'), limit(100)));
   const rows = snap.docs.map((d) => { const app = { id: d.id, ...d.data() }; return `<tr><td>${escapeHtml(app.formTitle)}</td><td>${escapeHtml(app.applicantDiscordUsername)}</td><td>${badge(app.status)}</td><td><button class="button small" data-review="${app.id}">Open</button></td></tr>`; }).join('') || '<tr><td colspan="4">No applications yet.</td></tr>';
@@ -357,7 +289,7 @@ async function reviewQueue() {
 }
 
 async function reviewApplication(appId) {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   if (!canStaff()) return layout('<section class="panel"><h1>Access denied</h1></section>');
   const snap = await getDoc(doc(db, 'applications', appId));
   if (!snap.exists()) return layout('<section class="panel"><h1>Application not found</h1></section>');
@@ -380,7 +312,7 @@ async function reviewApplication(appId) {
 }
 
 async function executiveConsole() {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   if (!canExecutive()) return layout('<section class="panel"><h1>Access denied</h1></section>');
   const formsSnap = await getDocs(query(collection(db, 'application_forms'), orderBy('createdAt', 'desc')));
   const forms = formsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -397,20 +329,19 @@ async function executiveConsole() {
 }
 
 async function ownerConsole() {
-  if (!requireLogin()) return;
+  if (!requireProfile()) return;
   if (state.profile.role !== 'owner') return layout('<section class="panel"><h1>Access denied</h1></section>');
   const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100)));
   const rows = usersSnap.docs.map((d) => { const user = { id: d.id, ...d.data() }; return `<tr><td>${escapeHtml(user.discordUsername)}</td><td>${escapeHtml(user.discordId)}</td><td>${badge(user.role)}</td><td><select data-role-select="${user.id}">${roles.map((r) => `<option ${r === user.role ? 'selected' : ''}>${r}</option>`).join('')}</select></td><td><button class="button small" data-save-role="${user.id}">Save</button></td></tr>`; }).join('') || '<tr><td colspan="5">No users yet.</td></tr>';
   layout(`<section class="page-head"><h1>Owner Console</h1><p class="muted">Manage portal users and roles.</p></section><section class="panel"><table><thead><tr><th>User</th><th>Discord ID</th><th>Current Role</th><th>New Role</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
-  document.querySelectorAll('[data-save-role]').forEach((btn) => btn.addEventListener('click', async () => { const uid = btn.dataset.saveRole; const role = document.querySelector(`[data-role-select="${uid}"]`).value; await updateDoc(doc(db, 'users', uid), { role, updatedAt: serverTimestamp() }); if (uid === state.profile.uid) await loadSession(); routeTo('#/owner'); }));
+  document.querySelectorAll('[data-save-role]').forEach((btn) => btn.addEventListener('click', async () => { const uid = btn.dataset.saveRole; const role = document.querySelector(`[data-role-select="${uid}"]`).value; await updateDoc(doc(db, 'users', uid), { role, updatedAt: serverTimestamp() }); if (uid === state.profile.uid) await refreshProfile(); routeTo('#/owner'); }));
 }
 
 async function render() {
-  if (!state.profile) await loadSession();
+  if (!state.authReady) return loading();
   const [path, param] = (window.location.hash || '#/').replace('#', '').split('/').filter(Boolean);
   if (!path) return hero();
-  if (path === 'signin') return authScreen('signin');
-  if (path === 'register') return authScreen('register');
+  if (path === 'signin' || path === 'register') return registerScreen();
   if (path === 'bootstrap') return bootstrapScreen();
   if (path === 'dashboard') return dashboard();
   if (path === 'applications') return applicantApplications();
@@ -423,4 +354,4 @@ async function render() {
   return hero();
 }
 
-render();
+loading();
