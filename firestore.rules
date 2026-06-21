@@ -4,15 +4,39 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function hasProfile() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
     function myProfile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function activeProfile() { return hasProfile() && (!('accountStatus' in myProfile().data) || myProfile().data.accountStatus == 'active'); }
     function myRole() { return hasProfile() ? myProfile().data.role : null; }
-    function staff() { return myRole() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner']; }
-    function finalDecision() { return myRole() in ['executive', 'owner']; }
-    function executive() { return finalDecision(); }
-    function owner() { return myRole() == 'owner'; }
+    function staff() { return activeProfile() && myRole() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner']; }
+    function finalDecision() { return activeProfile() && myRole() in ['executive', 'owner']; }
+    function owner() { return activeProfile() && myRole() == 'owner'; }
     function firstOwnerNotCreated() { return !exists(/databases/$(database)/documents/system/ownerBootstrap); }
     function ownApplicationId(applicationId) { return applicationId.matches('^' + request.auth.uid + '_.*$'); }
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function noRecommendationYet() { return !('reviewerRecommendation' in resource.data) || resource.data.reviewerRecommendation == ''; }
+
+    function autoUnderReview() {
+      return staff()
+        && resource.data.status == 'submitted'
+        && request.resource.data.status == 'underReview'
+        && changedOnly(['status', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
+    }
+
+    function reviewerRecommendationWorkflow() {
+      return staff()
+        && !owner()
+        && noRecommendationYet()
+        && request.resource.data.status == 'pendingFinalDecision'
+        && request.resource.data.reviewerRecommendation is string
+        && request.resource.data.reviewerRecommendation != ''
+        && changedOnly(['status', 'reviewerRecommendation', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
+    }
+
+    function executiveRecommendationWorkflow() {
+      return finalDecision()
+        && !owner()
+        && request.resource.data.status == 'pendingFinalDecision'
+        && changedOnly(['status', 'reviewerRecommendation', 'publicMessage', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
+    }
 
     match /system/{docId} {
       allow read: if owner();
@@ -33,7 +57,7 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.accountStatus == 'active'
         && (request.resource.data.role == 'applicant' || (request.resource.data.role == 'owner' && firstOwnerNotCreated()));
-      allow update: if signedIn() && ((uid == request.auth.uid && request.resource.data.role == resource.data.role && request.resource.data.uid == resource.data.uid && request.resource.data.accountStatus == resource.data.accountStatus) || owner());
+      allow update: if signedIn() && ((uid == request.auth.uid && activeProfile() && request.resource.data.role == resource.data.role && request.resource.data.uid == resource.data.uid && request.resource.data.accountStatus == resource.data.accountStatus) || owner());
       allow delete: if owner();
     }
 
@@ -44,15 +68,16 @@ service cloud.firestore {
     }
 
     match /applications/{applicationId} {
-      allow get: if signedIn() && (ownApplicationId(applicationId) || staff());
-      allow list: if signedIn() && (resource.data.applicantUid == request.auth.uid || staff());
+      allow get: if signedIn() && activeProfile() && (ownApplicationId(applicationId) || staff());
+      allow list: if signedIn() && activeProfile() && (resource.data.applicantUid == request.auth.uid || staff());
       allow create: if signedIn()
+        && activeProfile()
         && applicationId == request.auth.uid + '_' + request.resource.data.formId
         && request.resource.data.applicantUid == request.auth.uid
         && request.resource.data.status in ['draft', 'submitted']
         && !('decision' in request.resource.data)
         && !('reviewerNotes' in request.resource.data);
-      allow update: if signedIn() && (
+      allow update: if signedIn() && activeProfile() && (
         (resource.data.applicantUid == request.auth.uid
           && applicationId == request.auth.uid + '_' + resource.data.formId
           && resource.data.status == 'draft'
@@ -61,11 +86,10 @@ service cloud.firestore {
           && request.resource.data.status in ['draft', 'submitted']
           && !('decision' in request.resource.data)
           && !('reviewerNotes' in request.resource.data))
-        || finalDecision()
-        || (staff()
-          && !finalDecision()
-          && noRecommendationYet()
-          && changedOnly(['reviewerRecommendation', 'reviewedBy', 'reviewedByUsername', 'updatedAt']))
+        || owner()
+        || autoUnderReview()
+        || reviewerRecommendationWorkflow()
+        || executiveRecommendationWorkflow()
       );
       allow delete: if owner();
     }
@@ -77,7 +101,7 @@ service cloud.firestore {
 
     match /audit_logs/{logId} {
       allow read: if staff();
-      allow create: if signedIn();
+      allow create: if activeProfile();
       allow update, delete: if false;
     }
   }
