@@ -8,6 +8,7 @@ const executiveRoles = ['executive', 'owner'];
 let user = auth.currentUser;
 let profile = null;
 let draftQuestions = [];
+let draftRequirements = [];
 
 const esc = (v = '') => String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(v || 'Unknown')}</span>`;
@@ -43,7 +44,7 @@ async function executivePage() {
   const forms = await getDocs(query(collection(db, 'application_forms'), orderBy('createdAt', 'desc')));
   const cards = forms.docs.map(d => {
     const f = { id: d.id, ...d.data() };
-    return `<div class="mini-card"><div><strong>${esc(f.title)}</strong><p>${esc(f.department || 'General')} · ${badge(f.status)}</p><p class="muted">${esc((f.questions || []).length)} question(s)</p></div><div class="actions"><button class="button small" data-status="open" data-form="${f.id}">Open</button><button class="button small secondary" data-status="closed" data-form="${f.id}">Close</button><button class="button small quiet" data-status="archived" data-form="${f.id}">Archive</button></div></div>`;
+    return `<div class="mini-card"><div><strong>${esc(f.title)}</strong><p>${esc(f.department || 'General')} · ${badge(f.status)}</p><p class="muted">${esc((f.questions || []).length)} question(s) · ${esc((f.requirements || []).length)} requirement(s)</p></div><div class="actions"><button class="button small" data-status="open" data-form="${f.id}">Open</button><button class="button small secondary" data-status="closed" data-form="${f.id}">Close</button><button class="button small quiet" data-status="archived" data-form="${f.id}">Archive</button></div></div>`;
   }).join('') || '<p class="muted">No forms created yet.</p>';
   shell(`<section class="page-head"><div><p class="eyebrow">Executive Center</p><h1>Application Controls</h1><p class="muted">Create, open, close, and archive Cognitus applications.</p></div><button class="button" id="createApplicationBtn">Create Application</button></section><section class="panel"><h2>Manage Forms</h2><div id="executiveMessage"></div>${cards}</section>`);
   document.querySelector('#createApplicationBtn').onclick = openCreateModal;
@@ -53,20 +54,69 @@ async function executivePage() {
   });
 }
 
-function drawQuestionList() {
-  const list = document.querySelector('#questionList');
-  if (!list) return;
-  list.innerHTML = draftQuestions.length ? draftQuestions.map((q, i) => `<div class="question-row"><span><strong>Q${i + 1}.</strong> ${esc(q)}</span><button class="button small quiet" type="button" data-remove="${i}">Remove</button></div>`).join('') : '<p class="muted">No questions added yet. Click Add Question to add one.</p>';
-  document.querySelectorAll('[data-remove]').forEach(btn => btn.onclick = () => { draftQuestions.splice(Number(btn.dataset.remove), 1); drawQuestionList(); });
+function drawList(type) {
+  const isQuestion = type === 'question';
+  const listId = isQuestion ? '#questionList' : '#requirementList';
+  const source = isQuestion ? draftQuestions : draftRequirements;
+  const singular = isQuestion ? 'question' : 'requirement';
+  const box = document.querySelector(listId);
+  if (!box) return;
+  box.innerHTML = source.length
+    ? source.map((item, i) => `<div class="question-row"><span><strong>${isQuestion ? `Q${i + 1}.` : `${i + 1}.`}</strong> ${esc(item)}</span><button class="button small quiet" type="button" data-remove-${singular}="${i}">Remove</button></div>`).join('')
+    : `<p class="muted">No ${singular}s added yet.</p>`;
+  document.querySelectorAll(`[data-remove-${singular}]`).forEach(btn => btn.onclick = () => {
+    source.splice(Number(btn.dataset[`remove${singular[0].toUpperCase()}${singular.slice(1)}`]), 1);
+    drawList(type);
+  });
+}
+function addListItem(type) {
+  const isQuestion = type === 'question';
+  const input = document.querySelector(isQuestion ? '#questionInput' : '#requirementInput');
+  const value = input?.value.trim();
+  if (!value) return;
+  if (isQuestion) draftQuestions.push(value);
+  else draftRequirements.push(value);
+  input.value = '';
+  drawList(type);
+  input.focus();
 }
 function openCreateModal() {
   draftQuestions = [];
-  document.body.insertAdjacentHTML('beforeend', `<div class="modal-backdrop" id="applicationModal"><div class="modal-card"><div class="row"><div><p class="eyebrow">Executive Tool</p><h2>Create Application</h2></div><button class="button small quiet" type="button" id="closeModal">Close</button></div><form id="createForm" class="form"><label>Position Title<input name="title" required placeholder="Hiring Specialist"></label><label>Department<input name="department" placeholder="Human Resources"></label><label>Description<textarea name="description" rows="4" required></textarea></label><label>Requirements, one per line<textarea name="requirements" rows="4"></textarea></label><div class="question-builder"><div class="row"><h3>Application Questions</h3><button class="button secondary small" type="button" id="addQuestion">Add Question</button></div><div id="questionList"></div></div><label>Max Openings<input name="maxOpenings" type="number" min="0"></label><label>Status<select name="status"><option value="draft">Draft</option><option value="open">Open</option><option value="closed">Closed</option></select></label><div class="actions"><button class="button">Create Application</button><button class="button secondary" type="button" id="cancelModal">Cancel</button></div></form><div id="createMessage"></div></div></div>`);
-  drawQuestionList();
+  draftRequirements = [];
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-backdrop" id="applicationModal">
+      <div class="modal-card">
+        <div class="row"><div><p class="eyebrow">Executive Tool</p><h2>Create Application</h2></div><button class="button small quiet" type="button" id="closeModal">Close</button></div>
+        <form id="createForm" class="form">
+          <label>Position Title<input name="title" required placeholder="Hiring Specialist"></label>
+          <label>Department<input name="department" placeholder="Human Resources"></label>
+          <label>Description<textarea name="description" rows="4" required placeholder="Describe the role, expectations, and purpose."></textarea></label>
+          <div class="question-builder">
+            <div class="row"><h3>Requirements</h3></div>
+            <div class="inline-builder"><input id="requirementInput" type="text" placeholder="Example: Must be active in the Discord server"><button class="button secondary small" type="button" id="addRequirement">Add Requirement</button></div>
+            <div id="requirementList"></div>
+          </div>
+          <div class="question-builder">
+            <div class="row"><h3>Application Questions</h3></div>
+            <div class="inline-builder"><input id="questionInput" type="text" placeholder="Example: Why do you want this position?"><button class="button secondary small" type="button" id="addQuestion">Add Question</button></div>
+            <div id="questionList"></div>
+          </div>
+          <label>Max Openings<input name="maxOpenings" type="number" min="0" placeholder="0 for unlimited or unknown"></label>
+          <label>Status<select name="status"><option value="draft">Draft</option><option value="open">Open</option><option value="closed">Closed</option></select></label>
+          <div class="actions"><button class="button">Create Application</button><button class="button secondary" type="button" id="cancelModal">Cancel</button></div>
+        </form>
+        <div id="createMessage"></div>
+      </div>
+    </div>`);
+  drawList('requirement');
+  drawList('question');
   const close = () => document.querySelector('#applicationModal')?.remove();
   document.querySelector('#closeModal').onclick = close;
   document.querySelector('#cancelModal').onclick = close;
-  document.querySelector('#addQuestion').onclick = () => { const q = prompt('Enter the application question:'); if (q && q.trim()) { draftQuestions.push(q.trim()); drawQuestionList(); } };
+  document.querySelector('#addRequirement').onclick = () => addListItem('requirement');
+  document.querySelector('#addQuestion').onclick = () => addListItem('question');
+  document.querySelector('#requirementInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addListItem('requirement'); } });
+  document.querySelector('#questionInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addListItem('question'); } });
   document.querySelector('#createForm').onsubmit = createApplication;
 }
 async function createApplication(e) {
@@ -80,7 +130,7 @@ async function createApplication(e) {
       title: String(data.get('title') || '').trim(),
       department: String(data.get('department') || 'General').trim() || 'General',
       description: String(data.get('description') || '').trim(),
-      requirements: String(data.get('requirements') || '').split('\n').map(x => x.trim()).filter(Boolean),
+      requirements: draftRequirements,
       questions: draftQuestions.map((question, i) => ({ id: `q${i + 1}`, type: 'longText', question })),
       maxOpenings: Number(data.get('maxOpenings') || 0),
       status: data.get('status') || 'draft',
@@ -137,7 +187,7 @@ async function applyPage(formId) {
   if (old && old.status !== 'draft') return go(`#/status/${appId}`);
   if (form.status !== 'open' && !old) return shell('<section class="panel"><h1>This application is closed.</h1></section>');
   const questions = Array.isArray(form.questions) ? form.questions : [];
-  shell(`<section class="panel wide"><p class="eyebrow">${esc(form.department || 'Cognitus')}</p><h1>${esc(form.title)}</h1><p>${esc(form.description || '')}</p><form id="applicationForm" class="form">${questions.map((q,i) => { const qid = q.id || `q${i+1}`; return `<label>${esc(q.question || qid)}<textarea name="${esc(qid)}" rows="5" required>${esc(old?.answers?.[qid] || '')}</textarea></label>`; }).join('')}<label>Conflict of Interest Disclosure<textarea name="conflictDisclosure" rows="4">${esc(old?.conflictDisclosure || '')}</textarea></label><label class="check"><input type="checkbox" name="agreement" required ${old?.agreement ? 'checked' : ''}> I certify this is truthful and understand I may only submit once for this application.</label><div class="actions"><button class="button secondary" name="intent" value="draft">Save Draft</button><button class="button" name="intent" value="submit">Submit Application</button></div></form></section>`);
+  shell(`<section class="panel wide"><p class="eyebrow">${esc(form.department || 'Cognitus')}</p><h1>${esc(form.title)}</h1><p>${esc(form.description || '')}</p>${(form.requirements || []).length ? `<h3>Requirements</h3><ul>${form.requirements.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}<form id="applicationForm" class="form">${questions.map((q,i) => { const qid = q.id || `q${i+1}`; return `<label>${esc(q.question || qid)}<textarea name="${esc(qid)}" rows="5" required>${esc(old?.answers?.[qid] || '')}</textarea></label>`; }).join('')}<label>Conflict of Interest Disclosure<textarea name="conflictDisclosure" rows="4">${esc(old?.conflictDisclosure || '')}</textarea></label><label class="check"><input type="checkbox" name="agreement" required ${old?.agreement ? 'checked' : ''}> I certify this is truthful and understand I may only submit once for this application.</label><div class="actions"><button class="button secondary" name="intent" value="draft">Save Draft</button><button class="button" name="intent" value="submit">Submit Application</button></div></form></section>`);
   document.querySelector('#applicationForm').onsubmit = async e => {
     e.preventDefault();
     const intent = e.submitter?.value || 'draft';
