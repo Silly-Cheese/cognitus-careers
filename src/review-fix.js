@@ -31,7 +31,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v2</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v3</footer>`;
 }
 
 function routeParts() {
@@ -55,7 +55,7 @@ async function reviewQueue() {
   try {
     const snap = await getDocs(collection(db, 'applications'));
     const apps = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
-    const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}</td><td>${badge(app.status)}</td><td>${esc(app.reviewerRecommendation || 'None')}</td><td><button class="button small" data-open-review="${app.id}">Open</button></td></tr>`).join('') || '<tr><td colspan="5">No applications have been submitted yet.</td></tr>';
+    const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}<br><span class="muted">${esc(app.applicantDiscordId || '')}</span></td><td>${badge(app.status)}</td><td>${esc(app.reviewerRecommendation || 'None')}</td><td><button class="button small" data-open-review="${app.id}">Open</button></td></tr>`).join('') || '<tr><td colspan="5">No applications have been submitted yet.</td></tr>';
     shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Review submitted applications and add internal notes.</p></div></section><section class="panel"><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th>Recommendation</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
     document.querySelectorAll('[data-open-review]').forEach(btn => btn.onclick = () => go(`#/review/${btn.dataset.openReview}`));
   } catch (error) {
@@ -82,12 +82,20 @@ function reviewerActionForm(app) {
   return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><label>Recommendation<select name="recommendation" required>${recommendationOptions('')}</select></label><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Submit Recommendation</button></form>`;
 }
 
+function applicantInfoCard(app, applicantProfile) {
+  return `<section class="notice"><h3>Applicant Information</h3><div class="grid two"><div><strong>Discord Username</strong><p>${esc(app.applicantDiscordUsername || applicantProfile?.discordUsername || 'Not provided')}</p></div><div><strong>Discord ID</strong><p>${esc(app.applicantDiscordId || applicantProfile?.discordId || 'Not provided')}</p></div><div><strong>Roblox Username</strong><p>${esc(app.applicantRobloxUsername || applicantProfile?.robloxUsername || 'Not provided')}</p></div><div><strong>Applicant UID</strong><p>${esc(app.applicantUid || 'Unknown')}</p></div><div><strong>Application</strong><p>${esc(app.formTitle || 'Application')}</p></div><div><strong>Department</strong><p>${esc(app.department || 'General')}</p></div><div><strong>Application Status</strong><p>${badge(app.status)}</p></div><div><strong>Recommendation</strong><p>${esc(app.reviewerRecommendation || 'None')}</p></div></div></section>`;
+}
+
 async function reviewOne(appId) {
   shell('<section class="panel"><h1>Opening review...</h1><p class="muted">Loading application details.</p></section>');
   try {
     const appSnap = await getDoc(doc(db, 'applications', appId));
     if (!appSnap.exists()) return shell('<section class="panel"><h1>Application not found</h1></section>');
     const app = { id: appSnap.id, ...appSnap.data() };
+    let applicantProfile = null;
+    if (app.applicantUid) {
+      try { applicantProfile = await getProfile(app.applicantUid); } catch (error) { console.warn('Applicant profile failed to load.', error); }
+    }
     let notes = [];
     try {
       const noteSnap = await getDocs(query(collection(db, 'review_notes'), where('applicationId', '==', appId)));
@@ -95,7 +103,7 @@ async function reviewOne(appId) {
     } catch (error) {
       console.warn('Notes failed to load.', error);
     }
-    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div><p><strong>Applicant:</strong> ${esc(app.applicantDiscordUsername || '')} · ${esc(app.applicantDiscordId || '')}</p><p><strong>Current Recommendation:</strong> ${esc(app.reviewerRecommendation || 'None')}</p><h3>Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
+    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div>${applicantInfoCard(app, applicantProfile)}<h3>Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
     if (canFinalDecision()) document.querySelector('[name="status"]').value = app.status || 'submitted';
     document.querySelector('#reviewForm').onsubmit = async event => {
       event.preventDefault();
