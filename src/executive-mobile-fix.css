@@ -1,0 +1,140 @@
+@media (max-width: 900px) {
+  #applicationModal.modal-backdrop {
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: rgba(0, 0, 0, .58) !important;
+  }
+
+  #applicationModal .modal-card {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: 18px !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  #applicationModal .modal-card > .row:first-child {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    align-items: start !important;
+    padding: 0 0 14px !important;
+    margin-bottom: 12px !important;
+    background: rgba(255, 255, 255, .98) !important;
+    border-bottom: 1px solid #dddddd !important;
+  }
+
+  #applicationModal .modal-card > .row:first-child h2 {
+    font-size: 34px !important;
+    line-height: 1.12 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  #applicationModal #closeModal {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #bdbdbd !important;
+    border-radius: 16px !important;
+  }
+
+  #applicationModal .form {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  #applicationModal label {
+    display: grid !important;
+    gap: 8px !important;
+    font-size: 16px !important;
+  }
+
+  #applicationModal input,
+  #applicationModal textarea,
+  #applicationModal select {
+    min-height: 54px !important;
+    font-size: 16px !important;
+    border-radius: 16px !important;
+    padding: 14px 16px !important;
+  }
+
+  #applicationModal textarea {
+    min-height: 130px !important;
+  }
+
+  #applicationModal .question-builder {
+    padding: 18px !important;
+    border-radius: 22px !important;
+    display: grid !important;
+    gap: 12px !important;
+  }
+
+  #applicationModal .question-builder h3 {
+    margin: 0 !important;
+    font-size: 22px !important;
+  }
+
+  #applicationModal .inline-builder {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  #applicationModal .inline-builder .button,
+  #applicationModal .actions .button,
+  #applicationModal button {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+
+  #applicationModal .question-row {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  #applicationModal .actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 9 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    padding: 12px 0 0 !important;
+    background: rgba(255, 255, 255, .98) !important;
+    border-top: 1px solid #dddddd !important;
+  }
+
+  #applicationModal [name="maxOpenings"] {
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  #applicationModal .modal-card {
+    padding: 14px !important;
+  }
+
+  #applicationModal .modal-card > .row:first-child h2 {
+    font-size: 30px !important;
+  }
+
+  #applicationModal .question-builder {
+    padding: 15px !important;
+  }
+}
