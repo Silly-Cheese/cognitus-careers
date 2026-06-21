@@ -7,6 +7,7 @@ admin.initializeApp();
 const db = admin.firestore();
 const auth = admin.auth();
 const allowedRoles = ['applicant', 'reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
+const callableOptions = { region: 'us-central1', cors: true };
 
 function cleanDiscordId(discordId) {
   const value = String(discordId || '').trim();
@@ -50,7 +51,7 @@ async function issueToken(uid, role) {
   return auth.createCustomToken(uid, { role });
 }
 
-export const bootstrapOwner = onCall(async (request) => {
+export const bootstrapOwner = onCall(callableOptions, async (request) => {
   const setupKey = String(request.data?.setupKey || '');
   if (!process.env.OWNER_SETUP_KEY) throw new HttpsError('failed-precondition', 'OWNER_SETUP_KEY is not configured in Firebase Functions.');
   if (setupKey !== process.env.OWNER_SETUP_KEY) throw new HttpsError('permission-denied', 'Invalid owner setup key.');
@@ -83,7 +84,7 @@ export const bootstrapOwner = onCall(async (request) => {
   return { token: await issueToken(uid, 'owner') };
 });
 
-export const registerApplicant = onCall(async (request) => {
+export const registerApplicant = onCall(callableOptions, async (request) => {
   const discordId = cleanDiscordId(request.data?.discordId);
   const uid = uidFromDiscordId(discordId);
   const discordUsername = cleanUsername(request.data?.discordUsername);
@@ -111,7 +112,7 @@ export const registerApplicant = onCall(async (request) => {
   return { token: await issueToken(uid, 'applicant') };
 });
 
-export const loginWithDiscord = onCall(async (request) => {
+export const loginWithDiscord = onCall(callableOptions, async (request) => {
   const discordId = cleanDiscordId(request.data?.discordId);
   const uid = uidFromDiscordId(discordId);
   const password = String(request.data?.password || '');
@@ -128,7 +129,7 @@ export const loginWithDiscord = onCall(async (request) => {
   return { token: await issueToken(uid, profile.role || 'applicant') };
 });
 
-export const setUserRole = onCall(async (request) => {
+export const setUserRole = onCall(callableOptions, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in required.');
   const caller = await db.doc(`users/${request.auth.uid}`).get();
   if (!caller.exists || caller.data().role !== 'owner') throw new HttpsError('permission-denied', 'Only owners can change roles.');
