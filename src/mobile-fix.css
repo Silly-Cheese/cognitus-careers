@@ -33,6 +33,21 @@ html, body {
   color: #0c223a;
 }
 
+.disabled-title {
+  color: #b91c1c !important;
+  letter-spacing: .02em;
+}
+
+.disabled-account-backdrop {
+  z-index: 9999;
+  align-items: center;
+  backdrop-filter: blur(8px);
+}
+
+.disabled-account-card {
+  border-color: #fecaca !important;
+}
+
 .confirm-message {
   color: #344b61;
   margin: 0 0 14px;
