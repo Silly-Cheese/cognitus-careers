@@ -1,0 +1,191 @@
+html, body {
+  overflow-x: hidden;
+}
+
+.topbar nav .signout-mobile-fix {
+  white-space: nowrap;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  main {
+    padding: 24px 12px;
+  }
+
+  .topbar {
+    position: relative;
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .brand {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    flex: 0 0 auto;
+  }
+
+  nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  nav a,
+  nav button,
+  nav .muted {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    padding: 8px 10px;
+    background: #f4f8fc;
+    border: 1px solid #d7e4ef;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  nav .muted {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    background: transparent;
+    border: 0;
+    min-height: auto;
+    padding: 0;
+  }
+
+  .ghost,
+  nav .signout-mobile-fix {
+    width: 100%;
+  }
+
+  .hero {
+    min-height: auto;
+    padding-top: 10px;
+  }
+
+  .hero h1,
+  .page-head h1,
+  .panel h1 {
+    font-size: 34px;
+    line-height: 1.08;
+  }
+
+  .lead {
+    font-size: 17px;
+  }
+
+  .panel,
+  .card,
+  .hero-card {
+    border-radius: 20px;
+    padding: 18px;
+  }
+
+  .panel.narrow,
+  .panel.wide {
+    max-width: 100%;
+    margin: 0;
+  }
+
+  .page-head {
+    display: block;
+    margin-bottom: 16px;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions .button,
+  .actions button,
+  .button {
+    width: 100%;
+  }
+
+  .mini-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mini-card .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form.split,
+  .grid.two {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  th,
+  td {
+    padding: 10px;
+    font-size: 14px;
+  }
+
+  .notice .grid.two {
+    gap: 10px;
+  }
+
+  .modal-backdrop {
+    align-items: stretch;
+    padding: 8px;
+  }
+
+  .modal-card {
+    width: 100%;
+    min-height: auto;
+    margin: 0;
+    border-radius: 20px;
+    padding: 16px;
+  }
+
+  .modal-card h2 {
+    font-size: 26px;
+  }
+
+  input,
+  textarea,
+  select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  nav {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1,
+  .page-head h1,
+  .panel h1 {
+    font-size: 30px;
+  }
+
+  .panel,
+  .card,
+  .hero-card {
+    padding: 15px;
+  }
+
+  .mini-card .actions {
+    grid-template-columns: 1fr;
+  }
+}
