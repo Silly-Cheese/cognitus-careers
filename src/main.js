@@ -22,7 +22,6 @@ const BOOTSTRAP_KEY = 'CognitusOwnerSetup2026';
 const roles = ['applicant', 'reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const executiveRoles = ['executive', 'owner'];
-
 const state = { firebaseUser: null, profile: null, authReady: false, authError: null, draftQuestions: [] };
 
 window.addEventListener('hashchange', render);
@@ -30,13 +29,7 @@ window.addEventListener('hashchange', render);
 onAuthStateChanged(auth, async (user) => {
   try {
     if (!user) {
-      try {
-        await signInAnonymously(auth);
-      } catch (error) {
-        state.authError = error;
-        state.authReady = true;
-        render();
-      }
+      try { await signInAnonymously(auth); } catch (error) { state.authError = error; state.authReady = true; render(); }
       return;
     }
     state.firebaseUser = user;
@@ -54,18 +47,9 @@ onAuthStateChanged(auth, async (user) => {
 function routeTo(path) { window.location.hash = path; }
 function html(strings, ...values) { return strings.map((s, i) => s + (values[i] ?? '')).join(''); }
 function escapeHtml(value = '') { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
-function normalizeDiscordId(value) {
-  const id = String(value || '').trim();
-  if (!/^\d{10,25}$/.test(id)) throw new Error('Enter a valid numeric Discord user ID.');
-  return id;
-}
-async function loadProfile(uid) {
-  const snap = await getDoc(doc(db, 'users', uid));
-  return snap.exists() ? { uid, ...snap.data() } : null;
-}
-async function refreshProfile() {
-  state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null;
-}
+function normalizeDiscordId(value) { const id = String(value || '').trim(); if (!/^\d{10,25}$/.test(id)) throw new Error('Enter a valid numeric Discord user ID.'); return id; }
+async function loadProfile(uid) { const snap = await getDoc(doc(db, 'users', uid)); return snap.exists() ? { uid, ...snap.data() } : null; }
+async function refreshProfile() { state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null; }
 function badge(value) { return `<span class="badge badge-${String(value || 'unknown').replaceAll(' ', '-').toLowerCase()}">${escapeHtml(value || 'Unknown')}</span>`; }
 function canStaff() { return state.profile && staffRoles.includes(state.profile.role); }
 function canExecutive() { return state.profile && executiveRoles.includes(state.profile.role); }
@@ -96,12 +80,7 @@ function authSetupScreen() {
       <h1>Anonymous Auth is disabled.</h1>
       <p class="lead">Turn on Anonymous sign-in in Firebase so the portal can create browser-based accounts without collecting emails.</p>
       <div class="notice"><strong>Error:</strong> ${escapeHtml(state.authError?.code || state.authError?.message || 'Unknown Firebase Auth error')}</div>
-      <div class="setup-steps">
-        <div><strong>1</strong><span>Open Firebase Console</span></div>
-        <div><strong>2</strong><span>Go to Build → Authentication</span></div>
-        <div><strong>3</strong><span>Open Sign-in method</span></div>
-        <div><strong>4</strong><span>Enable Anonymous</span></div>
-      </div>
+      <div class="setup-steps"><div><strong>1</strong><span>Open Firebase Console</span></div><div><strong>2</strong><span>Go to Build → Authentication</span></div><div><strong>3</strong><span>Open Sign-in method</span></div><div><strong>4</strong><span>Enable Anonymous</span></div></div>
       <p class="muted">Anonymous Auth only gives Firestore a secure session ID. It does not ask for or store email addresses.</p>
     </section>
   `);
@@ -117,6 +96,30 @@ function hero() {
         <div class="actions"><a class="button" href="#/signin">Sign In</a><a class="button secondary" href="#/register">Create Account</a></div>
       </div>
       <div class="hero-card"><h3>For applicants</h3><p>Create an account, apply once per role, and return later to see where your application stands.</p></div>
+    </section>
+  `);
+}
+
+function signInScreen() {
+  if (!state.authReady) return loading();
+  if (state.authError) return authSetupScreen();
+  if (state.profile) {
+    layout(html`
+      <section class="panel narrow">
+        <p class="eyebrow">Sign In</p>
+        <h1>Welcome back, ${escapeHtml(state.profile.discordUsername)}.</h1>
+        <p class="muted">This browser already has an active Cognitus account session.</p>
+        <div class="actions"><a class="button" href="#/dashboard">Open Dashboard</a><a class="button secondary" href="#/applications">View Applications</a></div>
+      </section>
+    `);
+    return;
+  }
+  layout(html`
+    <section class="panel narrow">
+      <p class="eyebrow">Sign In</p>
+      <h1>No account found on this browser.</h1>
+      <p class="muted">This free-plan version keeps accounts connected to the browser where they were created. Create an account here, or use the browser/device where you created your account.</p>
+      <div class="actions"><a class="button" href="#/register">Create Account</a><a class="button secondary" href="#/">Back Home</a></div>
     </section>
   `);
 }
@@ -146,21 +149,10 @@ function registerScreen() {
     try {
       const uid = state.firebaseUser.uid;
       const discordId = normalizeDiscordId(form.get('discordId'));
-      await setDoc(doc(db, 'users', uid), {
-        uid,
-        discordUsername: String(form.get('discordUsername') || '').trim(),
-        discordId,
-        robloxUsername: String(form.get('robloxUsername') || '').trim(),
-        role: 'applicant',
-        accountStatus: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      await setDoc(doc(db, 'users', uid), { uid, discordUsername: String(form.get('discordUsername') || '').trim(), discordId, robloxUsername: String(form.get('robloxUsername') || '').trim(), role: 'applicant', accountStatus: 'active', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       await refreshProfile();
       routeTo('#/dashboard');
-    } catch (error) {
-      message.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
-    }
+    } catch (error) { message.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
   });
 }
 
@@ -173,11 +165,7 @@ function bootstrapScreen() {
       <h1>Create the first owner account</h1>
       <p class="muted">Bootstrap key: <strong>${BOOTSTRAP_KEY}</strong>. Firestore rules only allow this before the owner lock is created.</p>
       <form id="bootstrapForm" class="form">
-        <label>Bootstrap Key<input name="setupKey" required /></label>
-        <label>Discord Username<input name="discordUsername" value="Executive_Eagle" required /></label>
-        <label>Discord User ID<input name="discordId" required /></label>
-        <label>Roblox Username<input name="robloxUsername" value="Executive_Eagle" /></label>
-        <button class="button" type="submit">Bootstrap Owner</button>
+        <label>Bootstrap Key<input name="setupKey" required /></label><label>Discord Username<input name="discordUsername" value="Executive_Eagle" required /></label><label>Discord User ID<input name="discordId" required /></label><label>Roblox Username<input name="robloxUsername" value="Executive_Eagle" /></label><button class="button" type="submit">Bootstrap Owner</button>
       </form>
       <div id="formMessage"></div>
     </section>
@@ -190,49 +178,21 @@ function bootstrapScreen() {
       if (String(form.get('setupKey')) !== BOOTSTRAP_KEY) throw new Error('Invalid bootstrap key.');
       const uid = state.firebaseUser.uid;
       const batch = writeBatch(db);
-      batch.set(doc(db, 'users', uid), {
-        uid,
-        discordUsername: String(form.get('discordUsername') || '').trim(),
-        discordId: normalizeDiscordId(form.get('discordId')),
-        robloxUsername: String(form.get('robloxUsername') || '').trim(),
-        role: 'owner',
-        accountStatus: 'active',
-        permissions: ['*'],
-        bootstrapOwner: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      batch.set(doc(db, 'users', uid), { uid, discordUsername: String(form.get('discordUsername') || '').trim(), discordId: normalizeDiscordId(form.get('discordId')), robloxUsername: String(form.get('robloxUsername') || '').trim(), role: 'owner', accountStatus: 'active', permissions: ['*'], bootstrapOwner: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
       batch.set(doc(db, 'system', 'ownerBootstrap'), { createdBy: uid, createdAt: serverTimestamp(), locked: true });
       batch.set(doc(collection(db, 'audit_logs')), { action: 'OWNER_BOOTSTRAPPED', performedBy: uid, targetId: uid, timestamp: serverTimestamp() });
-      await batch.commit();
-      await refreshProfile();
-      routeTo('#/owner');
-    } catch (error) {
-      message.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
-    }
+      await batch.commit(); await refreshProfile(); routeTo('#/owner');
+    } catch (error) { message.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
   });
 }
 
-function requireProfile() {
-  if (!state.authReady) { loading(); return false; }
-  if (state.authError) { authSetupScreen(); return false; }
-  if (!state.profile) { routeTo('#/register'); return false; }
-  return true;
-}
+function requireProfile() { if (!state.authReady) { loading(); return false; } if (state.authError) { authSetupScreen(); return false; } if (!state.profile) { routeTo('#/register'); return false; } return true; }
 function loading() { layout('<section class="panel"><h1>Loading...</h1></section>'); }
 
 async function dashboard() {
   if (!requireProfile()) return;
   const p = state.profile;
-  layout(html`
-    <section class="page-head"><div><p class="eyebrow">${escapeHtml(p.role)}</p><h1>Welcome, ${escapeHtml(p.discordUsername)}</h1><p class="muted">Discord ID: ${escapeHtml(p.discordId)}</p></div></section>
-    <section class="grid cards">
-      <a class="card" href="#/applications"><h3>Applications</h3><p>Apply for open positions or view submissions.</p></a>
-      ${canStaff() ? `<a class="card" href="#/review"><h3>Review Queue</h3><p>Review submitted applications.</p></a>` : ''}
-      ${canExecutive() ? `<a class="card" href="#/executive"><h3>Executive Controls</h3><p>Create, open, close, and archive forms.</p></a>` : ''}
-      ${p.role === 'owner' ? `<a class="card" href="#/owner"><h3>Owner Console</h3><p>Manage user roles.</p></a>` : ''}
-    </section>
-  `);
+  layout(html`<section class="page-head"><div><p class="eyebrow">${escapeHtml(p.role)}</p><h1>Welcome, ${escapeHtml(p.discordUsername)}</h1><p class="muted">Discord ID: ${escapeHtml(p.discordId)}</p></div></section><section class="grid cards"><a class="card" href="#/applications"><h3>Applications</h3><p>Apply for open positions or view submissions.</p></a>${canStaff() ? `<a class="card" href="#/review"><h3>Review Queue</h3><p>Review submitted applications.</p></a>` : ''}${canExecutive() ? `<a class="card" href="#/executive"><h3>Executive Controls</h3><p>Create, open, close, and archive forms.</p></a>` : ''}${p.role === 'owner' ? `<a class="card" href="#/owner"><h3>Owner Console</h3><p>Manage user roles.</p></a>` : ''}</section>`);
 }
 
 async function applicantApplications() {
@@ -240,16 +200,7 @@ async function applicantApplications() {
   const formsSnap = await getDocs(query(collection(db, 'application_forms'), orderBy('createdAt', 'desc')));
   const mySnap = await getDocs(query(collection(db, 'applications'), where('applicantUid', '==', state.profile.uid)));
   const myApps = new Map(mySnap.docs.map((d) => [d.data().formId, { id: d.id, ...d.data() }]));
-  const cards = formsSnap.docs.map((d) => {
-    const form = { id: d.id, ...d.data() };
-    const existing = myApps.get(form.id);
-    const isOpen = form.status === 'open';
-    let action = `<button class="button" data-apply="${form.id}" ${isOpen && !existing ? '' : 'disabled'}>Apply Now</button>`;
-    if (existing?.status === 'draft') action = `<button class="button" data-apply="${form.id}">Continue Draft</button>`;
-    if (existing && existing.status !== 'draft') action = `<button class="button secondary" data-view="${existing.id}">View Status</button>`;
-    if (!isOpen && !existing) action = `<button class="button" disabled>Closed</button>`;
-    return `<article class="card"><div class="row"><h3>${escapeHtml(form.title)}</h3>${badge(form.status)}</div><p class="muted">${escapeHtml(form.department || 'General')}</p><p>${escapeHtml(form.description || '')}</p>${existing ? `<p>Your status: ${badge(existing.status)}</p>` : ''}${action}</article>`;
-  }).join('') || '<p class="muted">No application forms exist yet.</p>';
+  const cards = formsSnap.docs.map((d) => { const form = { id: d.id, ...d.data() }; const existing = myApps.get(form.id); const isOpen = form.status === 'open'; let action = `<button class="button" data-apply="${form.id}" ${isOpen && !existing ? '' : 'disabled'}>Apply Now</button>`; if (existing?.status === 'draft') action = `<button class="button" data-apply="${form.id}">Continue Draft</button>`; if (existing && existing.status !== 'draft') action = `<button class="button secondary" data-view="${existing.id}">View Status</button>`; if (!isOpen && !existing) action = `<button class="button" disabled>Closed</button>`; return `<article class="card"><div class="row"><h3>${escapeHtml(form.title)}</h3>${badge(form.status)}</div><p class="muted">${escapeHtml(form.department || 'General')}</p><p>${escapeHtml(form.description || '')}</p>${existing ? `<p>Your status: ${badge(existing.status)}</p>` : ''}${action}</article>`; }).join('') || '<p class="muted">No application forms exist yet.</p>';
   layout(`<section class="page-head"><h1>Applications</h1><p class="muted">You may submit one application per application form.</p></section><section class="grid cards">${cards}</section>`);
   document.querySelectorAll('[data-apply]').forEach((btn) => btn.addEventListener('click', () => routeTo(`#/apply/${btn.dataset.apply}`)));
   document.querySelectorAll('[data-view]').forEach((btn) => btn.addEventListener('click', () => routeTo(`#/status/${btn.dataset.view}`)));
@@ -266,40 +217,8 @@ async function applyScreen(formId) {
   if (existing && existing.status !== 'draft') return routeTo(`#/status/${appId}`);
   if (form.status !== 'open' && !existing) return layout('<section class="panel"><h1>This application is closed.</h1></section>');
   const questions = Array.isArray(form.questions) ? form.questions : [];
-  layout(html`
-    <section class="panel wide"><p class="eyebrow">${escapeHtml(form.department || 'Cognitus')}</p><h1>${escapeHtml(form.title)}</h1><p>${escapeHtml(form.description || '')}</p>
-      <form id="applicationForm" class="form">
-        ${questions.map((q, i) => { const id = q.id || `q${i + 1}`; return `<label>${escapeHtml(q.question || id)}<textarea name="${escapeHtml(id)}" rows="5" required>${escapeHtml(existing?.answers?.[id] || '')}</textarea></label>`; }).join('')}
-        <label>Conflict of Interest Disclosure<textarea name="conflictDisclosure" rows="4">${escapeHtml(existing?.conflictDisclosure || '')}</textarea></label>
-        <label class="check"><input type="checkbox" name="agreement" required ${existing?.agreement ? 'checked' : ''}/> I certify this is truthful and understand I may only submit once for this application.</label>
-        <div class="actions"><button class="button secondary" name="intent" value="draft">Save Draft</button><button class="button" name="intent" value="submit">Submit Application</button></div>
-      </form>
-    </section>
-  `);
-  document.querySelector('#applicationForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const submitter = event.submitter?.value || 'draft';
-    const data = new FormData(event.currentTarget);
-    const answers = {};
-    questions.forEach((q, i) => { const id = q.id || `q${i + 1}`; answers[id] = data.get(id) || ''; });
-    await setDoc(doc(db, 'applications', appId), {
-      applicationId: appId,
-      applicantUid: state.profile.uid,
-      applicantDiscordUsername: state.profile.discordUsername,
-      applicantDiscordId: state.profile.discordId,
-      applicantRobloxUsername: state.profile.robloxUsername || '',
-      formId,
-      formTitle: form.title,
-      department: form.department || 'General',
-      answers,
-      conflictDisclosure: data.get('conflictDisclosure') || '',
-      agreement: data.get('agreement') === 'on',
-      status: submitter === 'submit' ? 'submitted' : 'draft',
-      updatedAt: serverTimestamp(),
-      submittedAt: submitter === 'submit' ? serverTimestamp() : existing?.submittedAt || null
-    }, { merge: true });
-    routeTo(submitter === 'submit' ? `#/status/${appId}` : '#/applications');
-  });
+  layout(html`<section class="panel wide"><p class="eyebrow">${escapeHtml(form.department || 'Cognitus')}</p><h1>${escapeHtml(form.title)}</h1><p>${escapeHtml(form.description || '')}</p><form id="applicationForm" class="form">${questions.map((q, i) => { const id = q.id || `q${i + 1}`; return `<label>${escapeHtml(q.question || id)}<textarea name="${escapeHtml(id)}" rows="5" required>${escapeHtml(existing?.answers?.[id] || '')}</textarea></label>`; }).join('')}<label>Conflict of Interest Disclosure<textarea name="conflictDisclosure" rows="4">${escapeHtml(existing?.conflictDisclosure || '')}</textarea></label><label class="check"><input type="checkbox" name="agreement" required ${existing?.agreement ? 'checked' : ''}/> I certify this is truthful and understand I may only submit once for this application.</label><div class="actions"><button class="button secondary" name="intent" value="draft">Save Draft</button><button class="button" name="intent" value="submit">Submit Application</button></div></form></section>`);
+  document.querySelector('#applicationForm').addEventListener('submit', async (event) => { event.preventDefault(); const submitter = event.submitter?.value || 'draft'; const data = new FormData(event.currentTarget); const answers = {}; questions.forEach((q, i) => { const id = q.id || `q${i + 1}`; answers[id] = data.get(id) || ''; }); await setDoc(doc(db, 'applications', appId), { applicationId: appId, applicantUid: state.profile.uid, applicantDiscordUsername: state.profile.discordUsername, applicantDiscordId: state.profile.discordId, applicantRobloxUsername: state.profile.robloxUsername || '', formId, formTitle: form.title, department: form.department || 'General', answers, conflictDisclosure: data.get('conflictDisclosure') || '', agreement: data.get('agreement') === 'on', status: submitter === 'submit' ? 'submitted' : 'draft', updatedAt: serverTimestamp(), submittedAt: submitter === 'submit' ? serverTimestamp() : existing?.submittedAt || null }, { merge: true }); routeTo(submitter === 'submit' ? `#/status/${appId}` : '#/applications'); });
 }
 
 async function statusScreen(appId) {
@@ -327,68 +246,21 @@ async function reviewApplication(appId) {
   if (!snap.exists()) return layout('<section class="panel"><h1>Application not found</h1></section>');
   const app = { id: snap.id, ...snap.data() };
   const notesSnap = await getDocs(query(collection(db, 'review_notes'), where('applicationId', '==', appId), orderBy('createdAt', 'desc')));
-  layout(html`
-    <section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${escapeHtml(app.formTitle)}</h1>${badge(app.status)}</div><p><strong>Applicant:</strong> ${escapeHtml(app.applicantDiscordUsername)} · ${escapeHtml(app.applicantDiscordId)}</p><h3>Responses</h3>${Object.entries(app.answers || {}).map(([k, v]) => `<div class="answer"><strong>${escapeHtml(k)}</strong><p>${escapeHtml(v)}</p></div>`).join('')}<h3>Reviewer Action</h3>
-      <form id="reviewForm" class="form split"><label>Status<select name="status"><option>underReview</option><option>interviewRequested</option><option>interviewCompleted</option><option>pendingFinalDecision</option><option>accepted</option><option>denied</option><option>archived</option></select></label><label>Recommendation<select name="recommendation"><option value="">None</option><option>approve</option><option>deny</option><option>interview</option><option>executiveReview</option></select></label><label class="full">Private Note<textarea name="note" rows="4"></textarea></label>${canExecutive() ? `<label class="full">Public Applicant Message<textarea name="publicMessage" rows="3">${escapeHtml(app.publicMessage || '')}</textarea></label>` : ''}<button class="button">Save Review</button></form><h3>Internal Notes</h3>${notesSnap.docs.map((d) => `<div class="note"><p>${escapeHtml(d.data().note)}</p><span>${escapeHtml(d.data().createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}</section>`);
+  layout(html`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${escapeHtml(app.formTitle)}</h1>${badge(app.status)}</div><p><strong>Applicant:</strong> ${escapeHtml(app.applicantDiscordUsername)} · ${escapeHtml(app.applicantDiscordId)}</p><h3>Responses</h3>${Object.entries(app.answers || {}).map(([k, v]) => `<div class="answer"><strong>${escapeHtml(k)}</strong><p>${escapeHtml(v)}</p></div>`).join('')}<h3>Reviewer Action</h3><form id="reviewForm" class="form split"><label>Status<select name="status"><option>underReview</option><option>interviewRequested</option><option>interviewCompleted</option><option>pendingFinalDecision</option><option>accepted</option><option>denied</option><option>archived</option></select></label><label>Recommendation<select name="recommendation"><option value="">None</option><option>approve</option><option>deny</option><option>interview</option><option>executiveReview</option></select></label><label class="full">Private Note<textarea name="note" rows="4"></textarea></label>${canExecutive() ? `<label class="full">Public Applicant Message<textarea name="publicMessage" rows="3">${escapeHtml(app.publicMessage || '')}</textarea></label>` : ''}<button class="button">Save Review</button></form><h3>Internal Notes</h3>${notesSnap.docs.map((d) => `<div class="note"><p>${escapeHtml(d.data().note)}</p><span>${escapeHtml(d.data().createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}</section>`);
   document.querySelector('[name="status"]').value = app.status || 'underReview';
-  document.querySelector('#reviewForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const updates = { status: data.get('status'), reviewerRecommendation: data.get('recommendation'), reviewedBy: state.profile.uid, reviewedByUsername: state.profile.discordUsername, updatedAt: serverTimestamp() };
-    if (canExecutive()) { updates.publicMessage = data.get('publicMessage') || ''; if (['accepted', 'denied'].includes(updates.status)) updates.decision = updates.status; }
-    await updateDoc(doc(db, 'applications', appId), updates);
-    const note = String(data.get('note') || '').trim();
-    if (note) await addDoc(collection(db, 'review_notes'), { applicationId: appId, note, createdBy: state.profile.uid, createdByUsername: state.profile.discordUsername, createdAt: serverTimestamp() });
-    routeTo('#/review');
-  });
+  document.querySelector('#reviewForm').addEventListener('submit', async (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const updates = { status: data.get('status'), reviewerRecommendation: data.get('recommendation'), reviewedBy: state.profile.uid, reviewedByUsername: state.profile.discordUsername, updatedAt: serverTimestamp() }; if (canExecutive()) { updates.publicMessage = data.get('publicMessage') || ''; if (['accepted', 'denied'].includes(updates.status)) updates.decision = updates.status; } await updateDoc(doc(db, 'applications', appId), updates); const note = String(data.get('note') || '').trim(); if (note) await addDoc(collection(db, 'review_notes'), { applicationId: appId, note, createdBy: state.profile.uid, createdByUsername: state.profile.discordUsername, createdAt: serverTimestamp() }); routeTo('#/review'); });
 }
 
-function renderQuestionList() {
-  const list = document.querySelector('#questionList');
-  if (!list) return;
-  list.innerHTML = state.draftQuestions.length
-    ? state.draftQuestions.map((q, index) => `<div class="question-row"><span><strong>Q${index + 1}.</strong> ${escapeHtml(q)}</span><button class="button small quiet" type="button" data-remove-question="${index}">Remove</button></div>`).join('')
-    : '<p class="muted">No questions added yet. Click Add Question to add one.</p>';
-  document.querySelectorAll('[data-remove-question]').forEach((btn) => btn.addEventListener('click', () => {
-    state.draftQuestions.splice(Number(btn.dataset.removeQuestion), 1);
-    renderQuestionList();
-  }));
-}
+function renderQuestionList() { const list = document.querySelector('#questionList'); if (!list) return; list.innerHTML = state.draftQuestions.length ? state.draftQuestions.map((q, index) => `<div class="question-row"><span><strong>Q${index + 1}.</strong> ${escapeHtml(q)}</span><button class="button small quiet" type="button" data-remove-question="${index}">Remove</button></div>`).join('') : '<p class="muted">No questions added yet. Click Add Question to add one.</p>'; document.querySelectorAll('[data-remove-question]').forEach((btn) => btn.addEventListener('click', () => { state.draftQuestions.splice(Number(btn.dataset.removeQuestion), 1); renderQuestionList(); })); }
 
 function openApplicationModal() {
   state.draftQuestions = [];
-  document.body.insertAdjacentHTML('beforeend', html`
-    <div class="modal-backdrop" id="applicationModal">
-      <div class="modal-card">
-        <div class="row"><div><p class="eyebrow">Executive Tool</p><h2>Create Application</h2></div><button class="button small quiet" type="button" id="closeApplicationModal">Close</button></div>
-        <form id="formCreator" class="form">
-          <label>Position Title<input name="title" required placeholder="Hiring Specialist" /></label>
-          <label>Department<input name="department" placeholder="Human Resources" /></label>
-          <label>Description<textarea name="description" rows="4" required placeholder="Describe the position and what this person will do."></textarea></label>
-          <label>Requirements, one per line<textarea name="requirements" rows="4" placeholder="Professional communication\nAble to follow policy\nAvailable weekly"></textarea></label>
-          <div class="question-builder">
-            <div class="row"><h3>Application Questions</h3><button class="button secondary small" type="button" id="addQuestionBtn">Add Question</button></div>
-            <div id="questionList"></div>
-          </div>
-          <label>Max Openings<input name="maxOpenings" type="number" min="0" placeholder="0 for unlimited / unknown" /></label>
-          <label>Status<select name="status"><option value="draft">Draft</option><option value="open">Open</option><option value="closed">Closed</option></select></label>
-          <div class="actions"><button class="button" type="submit">Create Application</button><button class="button secondary" type="button" id="cancelApplicationModal">Cancel</button></div>
-        </form>
-        <div id="createMessage"></div>
-      </div>
-    </div>
-  `);
+  document.body.insertAdjacentHTML('beforeend', html`<div class="modal-backdrop" id="applicationModal"><div class="modal-card"><div class="row"><div><p class="eyebrow">Executive Tool</p><h2>Create Application</h2></div><button class="button small quiet" type="button" id="closeApplicationModal">Close</button></div><form id="formCreator" class="form"><label>Position Title<input name="title" required placeholder="Hiring Specialist" /></label><label>Department<input name="department" placeholder="Human Resources" /></label><label>Description<textarea name="description" rows="4" required placeholder="Describe the position and what this person will do."></textarea></label><label>Requirements, one per line<textarea name="requirements" rows="4" placeholder="Professional communication\nAble to follow policy\nAvailable weekly"></textarea></label><div class="question-builder"><div class="row"><h3>Application Questions</h3><button class="button secondary small" type="button" id="addQuestionBtn">Add Question</button></div><div id="questionList"></div></div><label>Max Openings<input name="maxOpenings" type="number" min="0" placeholder="0 for unlimited / unknown" /></label><label>Status<select name="status"><option value="draft">Draft</option><option value="open">Open</option><option value="closed">Closed</option></select></label><div class="actions"><button class="button" type="submit">Create Application</button><button class="button secondary" type="button" id="cancelApplicationModal">Cancel</button></div></form><div id="createMessage"></div></div></div>`);
   renderQuestionList();
   const closeModal = () => document.querySelector('#applicationModal')?.remove();
   document.querySelector('#closeApplicationModal').addEventListener('click', closeModal);
   document.querySelector('#cancelApplicationModal').addEventListener('click', closeModal);
-  document.querySelector('#addQuestionBtn').addEventListener('click', () => {
-    const question = prompt('Enter the application question:');
-    if (question && question.trim()) {
-      state.draftQuestions.push(question.trim());
-      renderQuestionList();
-    }
-  });
+  document.querySelector('#addQuestionBtn').addEventListener('click', () => { const question = prompt('Enter the application question:'); if (question && question.trim()) { state.draftQuestions.push(question.trim()); renderQuestionList(); } });
   document.querySelector('#formCreator').addEventListener('submit', createApplicationForm);
 }
 
@@ -402,27 +274,10 @@ async function createApplicationForm(event) {
     const title = String(data.get('title') || '').trim();
     if (!title) throw new Error('Position title is required.');
     if (state.draftQuestions.length === 0) throw new Error('Add at least one application question.');
-    const payload = {
-      title,
-      department: String(data.get('department') || 'General').trim() || 'General',
-      description: String(data.get('description') || '').trim(),
-      requirements: String(data.get('requirements') || '').split('\n').map((x) => x.trim()).filter(Boolean),
-      questions: state.draftQuestions.map((question, index) => ({ id: `q${index + 1}`, type: 'longText', question })),
-      maxOpenings: Number(data.get('maxOpenings') || 0),
-      status: data.get('status') || 'draft',
-      visibility: 'public',
-      finalApprovalRequired: true,
-      createdBy: state.profile.uid,
-      createdByUsername: state.profile.discordUsername,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-    await addDoc(collection(db, 'application_forms'), payload);
+    await addDoc(collection(db, 'application_forms'), { title, department: String(data.get('department') || 'General').trim() || 'General', description: String(data.get('description') || '').trim(), requirements: String(data.get('requirements') || '').split('\n').map((x) => x.trim()).filter(Boolean), questions: state.draftQuestions.map((question, index) => ({ id: `q${index + 1}`, type: 'longText', question })), maxOpenings: Number(data.get('maxOpenings') || 0), status: data.get('status') || 'draft', visibility: 'public', finalApprovalRequired: true, createdBy: state.profile.uid, createdByUsername: state.profile.discordUsername, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     message.innerHTML = '<p class="notice"><strong>Created.</strong> The application has been saved.</p>';
     setTimeout(() => routeTo('#/executive'), 350);
-  } catch (error) {
-    message.innerHTML = `<p class="error"><strong>Application was not created.</strong><br>${escapeHtml(error.message)}</p>`;
-  }
+  } catch (error) { message.innerHTML = `<p class="error"><strong>Application was not created.</strong><br>${escapeHtml(error.message)}</p>`; }
 }
 
 async function executiveConsole() {
@@ -430,27 +285,9 @@ async function executiveConsole() {
   if (!canExecutive()) return layout('<section class="panel"><h1>Access denied</h1></section>');
   const formsSnap = await getDocs(query(collection(db, 'application_forms'), orderBy('createdAt', 'desc')));
   const forms = formsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  layout(html`
-    <section class="page-head">
-      <div><h1>Executive Application Controls</h1><p class="muted">Create, open, close, and archive Cognitus applications.</p></div>
-      <button class="button" id="openApplicationModal">Create Application</button>
-    </section>
-    <section class="panel">
-      <h2>Manage Forms</h2>
-      <div id="executiveMessage"></div>
-      ${forms.map((form) => `<div class="mini-card"><div><strong>${escapeHtml(form.title)}</strong><p>${escapeHtml(form.department || 'General')} · ${badge(form.status)}</p><p class="muted">${escapeHtml((form.questions || []).length)} question(s)</p></div><div class="actions"><button class="button small" data-status="open" data-form="${form.id}">Open</button><button class="button small secondary" data-status="closed" data-form="${form.id}">Close</button><button class="button small quiet" data-status="archived" data-form="${form.id}">Archive</button></div></div>`).join('') || '<p class="muted">No forms created yet.</p>'}
-    </section>
-  `);
+  layout(html`<section class="page-head"><div><h1>Executive Application Controls</h1><p class="muted">Create, open, close, and archive Cognitus applications.</p></div><button class="button" id="openApplicationModal">Create Application</button></section><section class="panel"><h2>Manage Forms</h2><div id="executiveMessage"></div>${forms.map((form) => `<div class="mini-card"><div><strong>${escapeHtml(form.title)}</strong><p>${escapeHtml(form.department || 'General')} · ${badge(form.status)}</p><p class="muted">${escapeHtml((form.questions || []).length)} question(s)</p></div><div class="actions"><button class="button small" data-status="open" data-form="${form.id}">Open</button><button class="button small secondary" data-status="closed" data-form="${form.id}">Close</button><button class="button small quiet" data-status="archived" data-form="${form.id}">Archive</button></div></div>`).join('') || '<p class="muted">No forms created yet.</p>'}</section>`);
   document.querySelector('#openApplicationModal').addEventListener('click', openApplicationModal);
-  document.querySelectorAll('[data-status]').forEach((btn) => btn.addEventListener('click', async () => {
-    const msg = document.querySelector('#executiveMessage');
-    try {
-      await updateDoc(doc(db, 'application_forms', btn.dataset.form), { status: btn.dataset.status, updatedAt: serverTimestamp() });
-      routeTo('#/executive');
-    } catch (error) {
-      msg.innerHTML = `<p class="error">Could not update application status: ${escapeHtml(error.message)}</p>`;
-    }
-  }));
+  document.querySelectorAll('[data-status]').forEach((btn) => btn.addEventListener('click', async () => { const msg = document.querySelector('#executiveMessage'); try { await updateDoc(doc(db, 'application_forms', btn.dataset.form), { status: btn.dataset.status, updatedAt: serverTimestamp() }); routeTo('#/executive'); } catch (error) { msg.innerHTML = `<p class="error">Could not update application status: ${escapeHtml(error.message)}</p>`; } }));
 }
 
 async function ownerConsole() {
@@ -467,7 +304,8 @@ async function render() {
   if (state.authError) return authSetupScreen();
   const [path, param] = (window.location.hash || '#/').replace('#', '').split('/').filter(Boolean);
   if (!path) return hero();
-  if (path === 'signin' || path === 'register') return registerScreen();
+  if (path === 'signin') return signInScreen();
+  if (path === 'register') return registerScreen();
   if (path === 'bootstrap') return bootstrapScreen();
   if (path === 'dashboard') return dashboard();
   if (path === 'applications') return applicantApplications();
