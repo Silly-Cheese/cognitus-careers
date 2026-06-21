@@ -1,11 +1,124 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Free-plan static-hosting version.
-    // This portal does not use Firebase Auth or Functions, so rules must allow the static app to read/write.
-    // Do not use this for sensitive real-world hiring records.
-    match /{document=**} {
-      allow read, write: if true;
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasProfile() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myRole() {
+      return hasProfile() ? myProfile().data.role : null;
+    }
+
+    function staff() {
+      return myRole() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
+    }
+
+    function executive() {
+      return myRole() in ['executive', 'owner'];
+    }
+
+    function owner() {
+      return myRole() == 'owner';
+    }
+
+    function firstOwnerNotCreated() {
+      return !exists(/databases/$(database)/documents/system/ownerBootstrap);
+    }
+
+    match /system/{docId} {
+      allow read: if owner();
+      allow create: if signedIn()
+        && docId == 'ownerBootstrap'
+        && firstOwnerNotCreated()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /credentials/{uid} {
+      allow read, write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (uid == request.auth.uid || staff());
+
+      allow create: if signedIn()
+        && uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.accountStatus == 'active'
+        && (
+          request.resource.data.role == 'applicant'
+          || (
+            request.resource.data.role == 'owner'
+            && firstOwnerNotCreated()
+          )
+        );
+
+      allow update: if signedIn() && (
+        // Users can update basic personal fields, but cannot self-promote or change protected fields.
+        (
+          uid == request.auth.uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.accountStatus == resource.data.accountStatus
+        )
+        || owner()
+      );
+
+      allow delete: if owner();
+    }
+
+    match /application_forms/{formId} {
+      allow read: if true;
+      allow create, update: if executive();
+      allow delete: if owner();
+    }
+
+    match /applications/{applicationId} {
+      allow read: if signedIn() && (
+        resource.data.applicantUid == request.auth.uid || staff()
+      );
+
+      allow create: if signedIn()
+        && applicationId == request.auth.uid + '_' + request.resource.data.formId
+        && request.resource.data.applicantUid == request.auth.uid
+        && request.resource.data.status in ['draft', 'submitted']
+        && !('decision' in request.resource.data)
+        && !('reviewerNotes' in request.resource.data);
+
+      allow update: if signedIn() && (
+        (
+          resource.data.applicantUid == request.auth.uid
+          && applicationId == request.auth.uid + '_' + resource.data.formId
+          && resource.data.status == 'draft'
+          && request.resource.data.applicantUid == request.auth.uid
+          && request.resource.data.formId == resource.data.formId
+          && request.resource.data.status in ['draft', 'submitted']
+          && !('decision' in request.resource.data)
+          && !('reviewerNotes' in request.resource.data)
+        )
+        || staff()
+      );
+
+      allow delete: if owner();
+    }
+
+    match /review_notes/{noteId} {
+      allow read, create, update: if staff();
+      allow delete: if executive();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if staff();
+      allow create: if signedIn();
+      allow update, delete: if false;
     }
   }
 }
