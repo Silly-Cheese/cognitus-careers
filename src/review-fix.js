@@ -4,7 +4,7 @@ import { auth, db } from './firebase.js';
 
 const root = document.querySelector('#app');
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
-const executiveRoles = ['executive', 'owner'];
+const finalDecisionRoles = ['executive', 'owner'];
 let user = auth.currentUser;
 let profile = null;
 let ready = false;
@@ -12,9 +12,10 @@ let ready = false;
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const go = path => { location.hash = path; };
 const staff = () => profile && staffRoles.includes(profile.role);
-const executive = () => profile && executiveRoles.includes(profile.role);
+const canFinalDecision = () => profile && finalDecisionRoles.includes(profile.role);
 const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(v || 'Unknown')}</span>`;
 const timeValue = value => value?.toMillis ? value.toMillis() : 0;
+const hasRecommendation = app => !!String(app.reviewerRecommendation || '').trim();
 
 onAuthStateChanged(auth, async current => {
   user = current;
@@ -30,7 +31,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${executive() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v1</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v2</footer>`;
 }
 
 function routeParts() {
@@ -54,12 +55,31 @@ async function reviewQueue() {
   try {
     const snap = await getDocs(collection(db, 'applications'));
     const apps = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
-    const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}</td><td>${badge(app.status)}</td><td><button class="button small" data-open-review="${app.id}">Open</button></td></tr>`).join('') || '<tr><td colspan="4">No applications have been submitted yet.</td></tr>';
-    shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Review submitted applications and add internal notes.</p></div></section><section class="panel"><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
+    const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}</td><td>${badge(app.status)}</td><td>${esc(app.reviewerRecommendation || 'None')}</td><td><button class="button small" data-open-review="${app.id}">Open</button></td></tr>`).join('') || '<tr><td colspan="5">No applications have been submitted yet.</td></tr>';
+    shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Review submitted applications and add internal notes.</p></div></section><section class="panel"><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th>Recommendation</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
     document.querySelectorAll('[data-open-review]').forEach(btn => btn.onclick = () => go(`#/review/${btn.dataset.openReview}`));
   } catch (error) {
     shell(`<section class="panel wide"><h1>Could not load review queue</h1><p class="error">${esc(error.message)}</p><p class="muted">Signed in as ${esc(profile.discordUsername)} with role ${esc(profile.role)}.</p></section>`);
   }
+}
+
+function recommendationOptions(selected = '') {
+  return ['','approve','deny','interview','executiveReview'].map(value => {
+    const label = value ? ({ approve: 'Approve', deny: 'Deny', interview: 'Interview', executiveReview: 'Executive Review' }[value] || value) : 'None';
+    return `<option value="${esc(value)}" ${value === selected ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+}
+
+function reviewerActionForm(app) {
+  if (canFinalDecision()) {
+    return `<h3>Reviewer Action</h3><form id="reviewForm" class="form split"><label>Status<select name="status"><option>submitted</option><option>underReview</option><option>interviewRequested</option><option>interviewCompleted</option><option>pendingFinalDecision</option><option>accepted</option><option>denied</option><option>archived</option></select></label><label>Recommendation<select name="recommendation">${recommendationOptions(app.reviewerRecommendation || '')}</select></label><label class="full">Private Note<textarea name="note" rows="4"></textarea></label><label class="full">Public Applicant Message<textarea name="publicMessage" rows="3">${esc(app.publicMessage || '')}</textarea></label><button class="button">Save Review</button></form>`;
+  }
+
+  if (hasRecommendation(app)) {
+    return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><div class="notice"><strong>Recommendation locked.</strong><br>Recommendation: ${esc(app.reviewerRecommendation)}<br>Only executives or owners can change an existing recommendation or make a final decision.</div><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Save Note</button></form>`;
+  }
+
+  return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><label>Recommendation<select name="recommendation" required>${recommendationOptions('')}</select></label><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Submit Recommendation</button></form>`;
 }
 
 async function reviewOne(appId) {
@@ -75,8 +95,8 @@ async function reviewOne(appId) {
     } catch (error) {
       console.warn('Notes failed to load.', error);
     }
-    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div><p><strong>Applicant:</strong> ${esc(app.applicantDiscordUsername || '')} · ${esc(app.applicantDiscordId || '')}</p><h3>Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}<h3>Reviewer Action</h3><form id="reviewForm" class="form split"><label>Status<select name="status"><option>submitted</option><option>underReview</option><option>interviewRequested</option><option>interviewCompleted</option><option>pendingFinalDecision</option><option>accepted</option><option>denied</option><option>archived</option></select></label><label>Recommendation<select name="recommendation"><option value="">None</option><option>approve</option><option>deny</option><option>interview</option><option>executiveReview</option></select></label><label class="full">Private Note<textarea name="note" rows="4"></textarea></label>${executive() ? `<label class="full">Public Applicant Message<textarea name="publicMessage" rows="3">${esc(app.publicMessage || '')}</textarea></label>` : ''}<button class="button">Save Review</button></form><h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
-    document.querySelector('[name="status"]').value = app.status || 'submitted';
+    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div><p><strong>Applicant:</strong> ${esc(app.applicantDiscordUsername || '')} · ${esc(app.applicantDiscordId || '')}</p><p><strong>Current Recommendation:</strong> ${esc(app.reviewerRecommendation || 'None')}</p><h3>Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
+    if (canFinalDecision()) document.querySelector('[name="status"]').value = app.status || 'submitted';
     document.querySelector('#reviewForm').onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
@@ -84,17 +104,23 @@ async function reviewOne(appId) {
       msg.innerHTML = '<p class="muted">Saving review...</p>';
       try {
         const updates = {
-          status: form.get('status'),
-          reviewerRecommendation: form.get('recommendation'),
           reviewedBy: profile.uid,
           reviewedByUsername: profile.discordUsername,
           updatedAt: serverTimestamp()
         };
-        if (executive()) {
+
+        if (canFinalDecision()) {
+          updates.status = form.get('status');
+          updates.reviewerRecommendation = form.get('recommendation');
           updates.publicMessage = form.get('publicMessage') || '';
           if (['accepted', 'denied'].includes(updates.status)) updates.decision = updates.status;
+        } else if (!hasRecommendation(app)) {
+          updates.reviewerRecommendation = form.get('recommendation');
         }
-        await updateDoc(doc(db, 'applications', appId), updates);
+
+        const shouldUpdateApplication = canFinalDecision() || (!hasRecommendation(app) && updates.reviewerRecommendation);
+        if (shouldUpdateApplication) await updateDoc(doc(db, 'applications', appId), updates);
+
         const note = String(form.get('note') || '').trim();
         if (note) {
           await addDoc(collection(db, 'review_notes'), {
