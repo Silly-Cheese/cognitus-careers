@@ -27,7 +27,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a><a href="#/review">Review</a><a href="#/executive">Executive</a><a href="#/owner">Owner</a>${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · OwnerAdmin v2</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a><a href="#/review">Review</a><a href="#/executive">Executive</a><a href="#/owner">Owner</a>${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · OwnerAdmin v3</footer>`;
 }
 
 async function handleOwnerRoute() {
@@ -46,9 +46,10 @@ async function ownerConsole() {
     const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     const rows = users.map(account => {
       const isSelf = account.id === profile.uid;
-      return `<tr><td><strong>${esc(account.discordUsername)}</strong><br><span class="muted">${esc(account.robloxUsername || 'No Roblox username')}</span></td><td>${esc(account.discordId || '')}</td><td>${badge(account.role)}</td><td><select data-role-select="${account.id}">${roles.map(role => `<option value="${role}" ${role === account.role ? 'selected' : ''}>${role}</option>`).join('')}</select></td><td><div class="actions"><button class="button small" data-save-role="${account.id}">Save Role</button><button class="button small secondary" data-disable-account="${account.id}" data-account-name="${esc(account.discordUsername || 'this account')}" ${isSelf ? 'disabled' : ''}>Disable</button><button class="button small quiet" data-delete-account="${account.id}" data-discord-id="${esc(account.discordId || '')}" data-account-name="${esc(account.discordUsername || 'this account')}" ${isSelf ? 'disabled' : ''}>Delete</button></div></td></tr>`;
-    }).join('') || '<tr><td colspan="5">No users found.</td></tr>';
-    shell(`<section class="page-head"><div><p class="eyebrow">Owner Console</p><h1>Account Management</h1><p class="muted">Change roles, disable portal access, or delete portal account records.</p></div></section><section class="panel"><div id="ownerMessage"></div><table><thead><tr><th>User</th><th>Discord ID</th><th>Current Role</th><th>New Role</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table><div class="notice"><strong>Note:</strong> Delete removes the Firestore portal profile and Discord ID mapping. It does not remove the Firebase Authentication login account. To fully delete the login, remove the user from Firebase Console → Authentication.</div></section>`);
+      const status = account.accountStatus || 'active';
+      return `<tr><td><strong>${esc(account.discordUsername)}</strong><br><span class="muted">${esc(account.robloxUsername || 'No Roblox username')}</span></td><td>${esc(account.discordId || '')}</td><td>${badge(account.role)}</td><td>${badge(status)}</td><td><select data-role-select="${account.id}">${roles.map(role => `<option value="${role}" ${role === account.role ? 'selected' : ''}>${role}</option>`).join('')}</select></td><td><div class="actions"><button class="button small" data-save-role="${account.id}">Save Role</button><button class="button small secondary" data-disable-account="${account.id}" data-account-name="${esc(account.discordUsername || 'this account')}" ${isSelf || status === 'disabled' ? 'disabled' : ''}>Disable</button><button class="button small quiet" data-delete-account="${account.id}" data-discord-id="${esc(account.discordId || '')}" data-account-name="${esc(account.discordUsername || 'this account')}" ${isSelf ? 'disabled' : ''}>Delete</button></div></td></tr>`;
+    }).join('') || '<tr><td colspan="6">No users found.</td></tr>';
+    shell(`<section class="page-head"><div><p class="eyebrow">Owner Console</p><h1>Account Management</h1><p class="muted">Change roles, disable portal access, or delete portal account records.</p></div></section><section class="panel"><div id="ownerMessage"></div><table><thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Status</th><th>New Role</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table><div class="notice"><strong>Note:</strong> Disable sets accountStatus to disabled and blocks portal usage with a red disabled-account modal. Delete removes the Firestore portal profile and Discord ID mapping. It does not remove the Firebase Authentication login account.</div></section>`);
     document.querySelectorAll('[data-save-role]').forEach(btn => btn.onclick = () => saveRole(btn.dataset.saveRole));
     document.querySelectorAll('[data-disable-account]').forEach(btn => btn.onclick = () => disableAccount(btn.dataset.disableAccount, btn.dataset.accountName));
     document.querySelectorAll('[data-delete-account]').forEach(btn => btn.onclick = () => deleteAccount(btn.dataset.deleteAccount, btn.dataset.discordId, btn.dataset.accountName));
@@ -76,7 +77,7 @@ async function disableAccount(uid, accountName = 'this account') {
   const confirmed = await confirmAction({
     title: 'Disable Portal Account?',
     message: `Disable ${accountName}?`,
-    details: 'The account profile will remain, but accountStatus will be set to disabled.',
+    details: 'The account will immediately be blocked from the portal with a red disabled-account message.',
     confirmText: 'Disable Account',
     cancelText: 'Cancel',
     danger: true
