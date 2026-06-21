@@ -33,7 +33,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v4</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v5</footer>`;
 }
 
 function routeParts() {
@@ -88,6 +88,11 @@ function applicantInfoCard(app, applicantProfile) {
   return `<section class="notice"><h3>Applicant Information</h3><div class="grid two"><div><strong>Discord Username</strong><p>${esc(app.applicantDiscordUsername || applicantProfile?.discordUsername || 'Not provided')}</p></div><div><strong>Discord ID</strong><p>${esc(app.applicantDiscordId || applicantProfile?.discordId || 'Not provided')}</p></div><div><strong>Roblox Username</strong><p>${esc(app.applicantRobloxUsername || applicantProfile?.robloxUsername || 'Not provided')}</p></div><div><strong>Applicant UID</strong><p>${esc(app.applicantUid || 'Unknown')}</p></div><div><strong>Application</strong><p>${esc(app.formTitle || 'Application')}</p></div><div><strong>Department</strong><p>${esc(app.department || 'General')}</p></div><div><strong>Application Status</strong><p>${badge(app.status)}</p></div><div><strong>Recommendation</strong><p>${esc(app.reviewerRecommendation || 'None')}</p></div></div></section>`;
 }
 
+function conflictDisclosureCard(app) {
+  const disclosure = String(app.conflictDisclosure || '').trim();
+  return `<h3>Conflict of Interest Disclosure</h3><div class="answer"><strong>Applicant Disclosure</strong><p>${disclosure ? esc(disclosure) : 'No conflict disclosure provided.'}</p></div>`;
+}
+
 async function reviewOne(appId) {
   shell('<section class="panel"><h1>Opening review...</h1><p class="muted">Loading application details.</p></section>');
   try {
@@ -105,7 +110,7 @@ async function reviewOne(appId) {
     } catch (error) {
       console.warn('Notes failed to load.', error);
     }
-    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div>${applicantInfoCard(app, applicantProfile)}<h3>Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
+    shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div>${applicantInfoCard(app, applicantProfile)}${conflictDisclosureCard(app)}<h3>Application Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}<div id="reviewMsg"></div></section>`);
     if (canFinalDecision()) document.querySelector('[name="status"]').value = app.status || 'submitted';
     document.querySelector('#reviewForm').onsubmit = async event => {
       event.preventDefault();
