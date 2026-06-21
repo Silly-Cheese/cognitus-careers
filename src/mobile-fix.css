@@ -11,6 +11,75 @@ html, body {
   overflow-x: auto;
 }
 
+.confirm-backdrop {
+  align-items: center;
+}
+
+.confirm-card {
+  width: min(520px, 100%);
+  background: #fff;
+  border: 1px solid #d8e5f1;
+  border-radius: 26px;
+  box-shadow: 0 28px 90px rgba(6, 23, 41, .35);
+  padding: 26px;
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 18px;
+}
+
+.confirm-card h2 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  color: #0c223a;
+}
+
+.confirm-message {
+  color: #344b61;
+  margin: 0 0 14px;
+}
+
+.confirm-details {
+  background: #f5f9fd;
+  border: 1px solid #dceaf6;
+  border-radius: 16px;
+  padding: 12px;
+  color: #49647c;
+  margin-bottom: 16px;
+}
+
+.confirm-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 900;
+  font-size: 24px;
+}
+
+.confirm-icon.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.danger-button {
+  background: #b91c1c;
+}
+
+.danger-button:hover {
+  filter: brightness(.95);
+}
+
+.confirm-actions {
+  justify-content: flex-end;
+}
+
+.confirm-actions .button {
+  width: auto;
+}
+
 @media (max-width: 900px) {
   main {
     padding: 24px 12px;
@@ -111,6 +180,10 @@ html, body {
     width: 100%;
   }
 
+  .confirm-actions .button {
+    width: 100%;
+  }
+
   .mini-card {
     flex-direction: column;
     align-items: stretch;
@@ -154,6 +227,20 @@ html, body {
     margin: 0;
     border-radius: 20px;
     padding: 16px;
+  }
+
+  .confirm-backdrop {
+    align-items: center;
+  }
+
+  .confirm-card {
+    grid-template-columns: 1fr;
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .confirm-card h2 {
+    font-size: 25px;
   }
 
   .modal-card h2 {
