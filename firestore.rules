@@ -31,7 +31,8 @@ service cloud.firestore {
     }
 
     match /application_forms/{formId} {
-      allow read: if resource.data.status == 'open' || staff();
+      // Application forms are not sensitive. Public read allows applicants to see open/closed status cards.
+      allow read: if true;
       allow create, update: if executive();
       allow delete: if owner();
     }
