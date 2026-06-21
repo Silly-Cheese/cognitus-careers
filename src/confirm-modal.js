@@ -1,3 +1,5 @@
+import './applicant-visibility.js';
+
 export function confirmAction({
   title = 'Confirm Action',
   message = 'Are you sure you want to continue?',
