@@ -121,7 +121,8 @@ async function ownerPage(){
 
 async function render(){
   if(!ready) return loading();
-  const [path, param] = (location.hash || '#/').replace('#','').split('/').filter(Boolean);
+  const [path] = (location.hash || '#/').replace('#','').split('/').filter(Boolean);
+  if(['apply','status','review','executive'].includes(path)) return;
   if(!path) return home();
   if(path === 'signin') return signInPage();
   if(path === 'register') return registerPage();
@@ -129,9 +130,6 @@ async function render(){
   if(path === 'dashboard') return dashboard();
   if(path === 'applications') return applicationsPage();
   if(path === 'owner') return ownerPage();
-  if(path === 'apply') return shell('<section class="panel"><h1>Application form loading will be restored next.</h1></section>');
-  if(path === 'review') return shell('<section class="panel"><h1>Reviewer tools will be restored next.</h1></section>');
-  if(path === 'executive') return shell('<section class="panel"><h1>Executive tools will be restored next.</h1></section>');
   return home();
 }
 
