@@ -23,19 +23,32 @@ const roles = ['applicant', 'reviewer', 'seniorReviewer', 'hiringLead', 'executi
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const executiveRoles = ['executive', 'owner'];
 
-const state = { firebaseUser: null, profile: null, authReady: false, draftQuestions: [] };
+const state = { firebaseUser: null, profile: null, authReady: false, authError: null, draftQuestions: [] };
 
 window.addEventListener('hashchange', render);
 
 onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    await signInAnonymously(auth);
-    return;
+  try {
+    if (!user) {
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        state.authError = error;
+        state.authReady = true;
+        render();
+      }
+      return;
+    }
+    state.firebaseUser = user;
+    state.profile = await loadProfile(user.uid);
+    state.authReady = true;
+    state.authError = null;
+    render();
+  } catch (error) {
+    state.authError = error;
+    state.authReady = true;
+    render();
   }
-  state.firebaseUser = user;
-  state.profile = await loadProfile(user.uid);
-  state.authReady = true;
-  render();
 });
 
 function routeTo(path) { window.location.hash = path; }
@@ -50,7 +63,9 @@ async function loadProfile(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? { uid, ...snap.data() } : null;
 }
-async function refreshProfile() { state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null; }
+async function refreshProfile() {
+  state.profile = state.firebaseUser ? await loadProfile(state.firebaseUser.uid) : null;
+}
 function badge(value) { return `<span class="badge badge-${String(value || 'unknown').replaceAll(' ', '-').toLowerCase()}">${escapeHtml(value || 'Unknown')}</span>`; }
 function canStaff() { return state.profile && staffRoles.includes(state.profile.role); }
 function canExecutive() { return state.profile && executiveRoles.includes(state.profile.role); }
@@ -74,6 +89,24 @@ function layout(content) {
   `;
 }
 
+function authSetupScreen() {
+  layout(html`
+    <section class="panel wide setup-panel">
+      <p class="eyebrow">Firebase Setup Needed</p>
+      <h1>Anonymous Auth is disabled.</h1>
+      <p class="lead">The portal cannot create secure browser sessions until Anonymous sign-in is enabled in Firebase Authentication.</p>
+      <div class="notice"><strong>Error:</strong> ${escapeHtml(state.authError?.code || state.authError?.message || 'Unknown Firebase Auth error')}</div>
+      <div class="setup-steps">
+        <div><strong>1</strong><span>Open Firebase Console</span></div>
+        <div><strong>2</strong><span>Go to Build → Authentication</span></div>
+        <div><strong>3</strong><span>Open Sign-in method</span></div>
+        <div><strong>4</strong><span>Enable Anonymous</span></div>
+      </div>
+      <p class="muted">This does not collect emails. It only lets Firestore know which browser session owns which profile and applications.</p>
+    </section>
+  `);
+}
+
 function hero() {
   layout(html`
     <section class="hero">
@@ -90,6 +123,7 @@ function hero() {
 
 function registerScreen() {
   if (!state.authReady) return loading();
+  if (state.authError) return authSetupScreen();
   if (state.profile) return routeTo('#/dashboard');
   layout(html`
     <section class="panel narrow">
@@ -132,6 +166,7 @@ function registerScreen() {
 
 function bootstrapScreen() {
   if (!state.authReady) return loading();
+  if (state.authError) return authSetupScreen();
   layout(html`
     <section class="panel narrow">
       <p class="eyebrow">Owner Bootstrap</p>
@@ -180,6 +215,7 @@ function bootstrapScreen() {
 
 function requireProfile() {
   if (!state.authReady) { loading(); return false; }
+  if (state.authError) { authSetupScreen(); return false; }
   if (!state.profile) { routeTo('#/register'); return false; }
   return true;
 }
@@ -428,6 +464,7 @@ async function ownerConsole() {
 
 async function render() {
   if (!state.authReady) return loading();
+  if (state.authError) return authSetupScreen();
   const [path, param] = (window.location.hash || '#/').replace('#', '').split('/').filter(Boolean);
   if (!path) return hero();
   if (path === 'signin' || path === 'register') return registerScreen();
