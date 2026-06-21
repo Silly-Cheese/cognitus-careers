@@ -4,9 +4,9 @@ A no-email career application portal for Cognitus Solutions.
 
 ## What this portal does
 
-- Applicants create accounts with Discord username, Discord ID, optional Roblox username, and password.
+- Applicants create accounts with Discord username, Discord ID, and optional Roblox username.
 - Applicants can submit multiple applications across Cognitus, but only one per application form.
-- Applicants can sign in later and view application status.
+- Applicants can return later from the same browser/device and view application status.
 - Reviewers can review submitted applications and add internal notes.
 - Executives and owners can create, open, close, and archive application forms.
 - Owners can manage roles and bootstrap the first owner account.
@@ -16,16 +16,31 @@ A no-email career application portal for Cognitus Solutions.
 This version uses only:
 
 - GitHub Pages for hosting
-- Firebase Firestore for data
-- Browser-side login logic
+- Firebase Anonymous Auth for identity
+- Firebase Firestore for data and role-based security rules
 
-It does **not** use Firebase Functions, Firebase custom tokens, or Firebase email/password auth. This keeps the project compatible with the Firebase free plan and avoids collecting emails.
+It does **not** use Firebase Functions, Firebase custom tokens, Firebase email/password auth, or collected emails. This keeps the project compatible with the Firebase free plan.
 
-## Important security note
+## Required Firebase Console setting
 
-Because there is no server backend on the free-plan version, Firestore rules are open enough for the static website to work. This is acceptable for a low-risk Roblox/Discord-style application portal, but it should not be used for sensitive real-world hiring records, legal identities, medical data, private documents, or financial information.
+In Firebase Console, enable Anonymous Auth:
 
-For stronger security later, upgrade Firebase to Blaze and switch back to a Functions-backed login system.
+```text
+Build > Authentication > Sign-in method > Anonymous > Enable
+```
+
+## Security model
+
+Firestore rules now enforce:
+
+- Users can only create/read/update their own applicant profile.
+- Applicants can only read/write their own applications.
+- Staff roles can read/review applications.
+- Executives and owners can create/open/close/archive application forms.
+- Only owners can change roles.
+- The first owner can only be created through the owner bootstrap lock.
+
+Important limitation: because this uses Anonymous Auth, an account is tied to the browser/device unless you later add Discord OAuth or a Functions-backed username/password login. No email is collected.
 
 ## Local setup
 
@@ -60,7 +75,7 @@ Use this bootstrap key:
 CognitusOwnerSetup2026
 ```
 
-The bootstrap page only creates an owner if no owner exists yet.
+The bootstrap page only creates an owner if the `system/ownerBootstrap` lock document does not exist yet.
 
 ## Default roles
 
