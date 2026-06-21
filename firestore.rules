@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() ? request.auth.token.role : null;
+    }
+
+    function staff() {
+      return role() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
+    }
+
+    function executive() {
+      return role() in ['executive', 'owner'];
+    }
+
+    function owner() {
+      return role() == 'owner';
+    }
+
+    match /credentials/{uid} {
+      allow read, write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || staff());
+      allow create, update, delete: if false;
+    }
+
+    match /application_forms/{formId} {
+      allow read: if resource.data.status == 'open' || staff();
+      allow create, update: if executive();
+      allow delete: if owner();
+    }
+
+    match /applications/{applicationId} {
+      allow read: if signedIn() && (resource.data.applicantUid == request.auth.uid || staff());
+      allow create: if signedIn()
+        && applicationId == request.auth.uid + '_' + request.resource.data.formId
+        && request.resource.data.applicantUid == request.auth.uid
+        && request.resource.data.status in ['draft', 'submitted']
+        && !('reviewerNotes' in request.resource.data)
+        && !('decision' in request.resource.data);
+      allow update: if signedIn() && (
+        (resource.data.applicantUid == request.auth.uid
+          && applicationId == request.auth.uid + '_' + resource.data.formId
+          && resource.data.status == 'draft'
+          && request.resource.data.status in ['draft', 'submitted']
+          && request.resource.data.applicantUid == request.auth.uid
+          && request.resource.data.formId == resource.data.formId
+          && !('decision' in request.resource.data))
+        || staff()
+      );
+      allow delete: if owner();
+    }
+
+    match /review_notes/{noteId} {
+      allow read, create, update: if staff();
+      allow delete: if executive();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if staff();
+      allow create, update, delete: if false;
+    }
+  }
+}
