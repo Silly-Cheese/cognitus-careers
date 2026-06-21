@@ -6,10 +6,13 @@ service cloud.firestore {
     function myProfile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
     function myRole() { return hasProfile() ? myProfile().data.role : null; }
     function staff() { return myRole() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner']; }
-    function executive() { return myRole() in ['executive', 'owner']; }
+    function finalDecision() { return myRole() in ['executive', 'owner']; }
+    function executive() { return finalDecision(); }
     function owner() { return myRole() == 'owner'; }
     function firstOwnerNotCreated() { return !exists(/databases/$(database)/documents/system/ownerBootstrap); }
     function ownApplicationId(applicationId) { return applicationId.matches('^' + request.auth.uid + '_.*$'); }
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function noRecommendationYet() { return !('reviewerRecommendation' in resource.data) || resource.data.reviewerRecommendation == ''; }
 
     match /system/{docId} {
       allow read: if owner();
@@ -36,7 +39,7 @@ service cloud.firestore {
 
     match /application_forms/{formId} {
       allow read: if true;
-      allow create, update: if executive();
+      allow create, update: if finalDecision();
       allow delete: if owner();
     }
 
@@ -49,13 +52,27 @@ service cloud.firestore {
         && request.resource.data.status in ['draft', 'submitted']
         && !('decision' in request.resource.data)
         && !('reviewerNotes' in request.resource.data);
-      allow update: if signedIn() && ((resource.data.applicantUid == request.auth.uid && applicationId == request.auth.uid + '_' + resource.data.formId && resource.data.status == 'draft' && request.resource.data.applicantUid == request.auth.uid && request.resource.data.formId == resource.data.formId && request.resource.data.status in ['draft', 'submitted'] && !('decision' in request.resource.data) && !('reviewerNotes' in request.resource.data)) || staff());
+      allow update: if signedIn() && (
+        (resource.data.applicantUid == request.auth.uid
+          && applicationId == request.auth.uid + '_' + resource.data.formId
+          && resource.data.status == 'draft'
+          && request.resource.data.applicantUid == request.auth.uid
+          && request.resource.data.formId == resource.data.formId
+          && request.resource.data.status in ['draft', 'submitted']
+          && !('decision' in request.resource.data)
+          && !('reviewerNotes' in request.resource.data))
+        || finalDecision()
+        || (staff()
+          && !finalDecision()
+          && noRecommendationYet()
+          && changedOnly(['reviewerRecommendation', 'reviewedBy', 'reviewedByUsername', 'updatedAt']))
+      );
       allow delete: if owner();
     }
 
     match /review_notes/{noteId} {
       allow read, create, update: if staff();
-      allow delete: if executive();
+      allow delete: if finalDecision();
     }
 
     match /audit_logs/{logId} {
