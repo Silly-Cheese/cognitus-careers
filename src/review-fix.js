@@ -1,5 +1,6 @@
 import './mobile-fix.css';
 import './header-actions.js';
+import { confirmAction } from './confirm-modal.js';
 import { onAuthStateChanged } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
@@ -34,7 +35,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v6</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v7</footer>`;
 }
 
 function routeParts() {
@@ -102,7 +103,14 @@ function ownerDangerZone(app) {
 
 async function deleteApplicationResponse(appId, applicantName = 'this applicant', messageSelector = '#reviewMsg') {
   if (!owner()) return;
-  const confirmed = confirm(`Delete the application response from ${applicantName}? This cannot be undone.`);
+  const confirmed = await confirmAction({
+    title: 'Delete Application Response?',
+    message: `This will permanently remove the response from ${applicantName}.`,
+    details: 'Related internal review notes will also be removed when possible. This action cannot be undone.',
+    confirmText: 'Delete Response',
+    cancelText: 'Keep Response',
+    danger: true
+  });
   if (!confirmed) return;
   const msg = document.querySelector(messageSelector);
   if (msg) msg.innerHTML = '<p class="muted">Deleting application response...</p>';
