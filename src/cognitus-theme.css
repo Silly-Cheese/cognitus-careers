@@ -1,0 +1,128 @@
+:root {
+  color: #0b0b0b;
+  background: #f3f3f3;
+}
+
+body {
+  background: radial-gradient(circle at top left, #ffffff 0, #eeeeee 42%, #d9d9d9 100%) !important;
+  color: #0b0b0b !important;
+}
+
+.topbar {
+  background: rgba(255, 255, 255, .94) !important;
+  border-bottom: 1px solid #d0d0d0 !important;
+}
+
+.brand-mark {
+  background: linear-gradient(135deg, #000000, #3b3b3b) !important;
+  color: #ffffff !important;
+}
+
+.brand strong,
+.hero h1,
+.page-head h1,
+.panel h1,
+.panel h2,
+.panel h3,
+.card h3,
+label {
+  color: #0b0b0b !important;
+}
+
+.brand span,
+.muted,
+.lead {
+  color: #5e5e5e !important;
+}
+
+.eyebrow {
+  color: #111111 !important;
+}
+
+.panel,
+.card,
+.hero-card,
+.modal-card,
+.confirm-card {
+  background: rgba(255, 255, 255, .96) !important;
+  border-color: #d3d3d3 !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, .08) !important;
+}
+
+.button {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+.button.secondary,
+.ghost,
+.button.quiet {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #bdbdbd !important;
+}
+
+.button:hover {
+  filter: brightness(.9) !important;
+}
+
+.danger-button,
+.button.danger-button {
+  background: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+input,
+textarea,
+select {
+  border-color: #c7c7c7 !important;
+  color: #0b0b0b !important;
+  background: #ffffff !important;
+}
+
+.badge {
+  background: #eeeeee !important;
+  color: #111111 !important;
+}
+
+.badge-open,
+.badge-accepted,
+.badge-active {
+  background: #111111 !important;
+  color: #ffffff !important;
+}
+
+.badge-closed,
+.badge-denied,
+.badge-disabled {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.notice,
+.answer,
+.note,
+.confirm-details,
+.question-builder {
+  background: #f7f7f7 !important;
+  border-color: #d5d5d5 !important;
+}
+
+.error {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+nav a,
+nav button {
+  color: #111111 !important;
+}
+
+@media (max-width: 900px) {
+  nav a,
+  nav button,
+  nav .muted {
+    background: #ffffff !important;
+    border-color: #d0d0d0 !important;
+  }
+}
