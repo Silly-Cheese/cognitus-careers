@@ -9,6 +9,7 @@ service cloud.firestore {
     function executive() { return myRole() in ['executive', 'owner']; }
     function owner() { return myRole() == 'owner'; }
     function firstOwnerNotCreated() { return !exists(/databases/$(database)/documents/system/ownerBootstrap); }
+    function ownApplicationId(applicationId) { return applicationId.matches('^' + request.auth.uid + '_.*$'); }
 
     match /system/{docId} {
       allow read: if owner();
@@ -40,7 +41,8 @@ service cloud.firestore {
     }
 
     match /applications/{applicationId} {
-      allow read: if signedIn() && (resource.data.applicantUid == request.auth.uid || staff());
+      allow get: if signedIn() && (ownApplicationId(applicationId) || staff());
+      allow list: if signedIn() && (resource.data.applicantUid == request.auth.uid || staff());
       allow create: if signedIn()
         && applicationId == request.auth.uid + '_' + request.resource.data.formId
         && request.resource.data.applicantUid == request.auth.uid
