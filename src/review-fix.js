@@ -17,7 +17,18 @@ const go = path => { location.hash = path; };
 const staff = () => profile && staffRoles.includes(profile.role);
 const owner = () => profile?.role === 'owner';
 const canFinalDecision = () => profile && finalDecisionRoles.includes(profile.role);
-const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(v || 'Unknown')}</span>`;
+const statusLabel = value => ({
+  submitted: 'Submitted',
+  underReview: 'Under Review',
+  pendingFinalDecision: 'Awaiting Final Decision',
+  interviewRequested: 'Interview Requested',
+  interviewCompleted: 'Interview Completed',
+  accepted: 'Accepted',
+  denied: 'Denied',
+  archived: 'Archived',
+  draft: 'Draft'
+}[value] || value || 'Unknown');
+const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(statusLabel(v))}</span>`;
 const timeValue = value => value?.toMillis ? value.toMillis() : 0;
 const hasRecommendation = app => !!String(app.reviewerRecommendation || '').trim();
 
@@ -35,7 +46,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v7</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${staff() ? '<a href="#/review">Review</a>' : ''}${canFinalDecision() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ReviewFix v8</footer>`;
 }
 
 function routeParts() {
@@ -60,7 +71,7 @@ async function reviewQueue() {
     const snap = await getDocs(collection(db, 'applications'));
     const apps = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => timeValue(b.updatedAt) - timeValue(a.updatedAt));
     const rows = apps.map(app => `<tr><td>${esc(app.formTitle || 'Untitled')}</td><td>${esc(app.applicantDiscordUsername || '')}<br><span class="muted">${esc(app.applicantDiscordId || '')}</span></td><td>${badge(app.status)}</td><td>${esc(app.reviewerRecommendation || 'None')}</td><td><div class="actions"><button class="button small" data-open-review="${app.id}">Open</button>${owner() ? `<button class="button small quiet" data-delete-response="${app.id}" data-applicant="${esc(app.applicantDiscordUsername || 'this applicant')}">Delete Response</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5">No applications have been submitted yet.</td></tr>';
-    shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Review submitted applications and add internal notes.</p></div></section><section class="panel"><div id="reviewQueueMsg"></div><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th>Recommendation</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
+    shell(`<section class="page-head"><div><p class="eyebrow">Reviewer Center</p><h1>Review Queue</h1><p class="muted">Opening a submitted application automatically moves it to Under Review. Submitting a recommendation moves it to Awaiting Final Decision.</p></div></section><section class="panel"><div id="reviewQueueMsg"></div><table><thead><tr><th>Application</th><th>Applicant</th><th>Status</th><th>Recommendation</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`);
     document.querySelectorAll('[data-open-review]').forEach(btn => btn.onclick = () => go(`#/review/${btn.dataset.openReview}`));
     document.querySelectorAll('[data-delete-response]').forEach(btn => btn.onclick = () => deleteApplicationResponse(btn.dataset.deleteResponse, btn.dataset.applicant, '#reviewQueueMsg'));
   } catch (error) {
@@ -75,16 +86,24 @@ function recommendationOptions(selected = '') {
   }).join('');
 }
 
+function statusOptions(selected = '') {
+  return ['submitted', 'underReview', 'pendingFinalDecision', 'interviewRequested', 'interviewCompleted', 'accepted', 'denied', 'archived'].map(value => `<option value="${esc(value)}" ${value === selected ? 'selected' : ''}>${esc(statusLabel(value))}</option>`).join('');
+}
+
 function reviewerActionForm(app) {
+  if (owner()) {
+    return `<h3>Owner Review Action</h3><form id="reviewForm" class="form split"><label>Status<select name="status">${statusOptions(app.status || 'submitted')}</select></label><label>Recommendation<select name="recommendation">${recommendationOptions(app.reviewerRecommendation || '')}</select></label><label class="full">Private Note<textarea name="note" rows="4"></textarea></label><label class="full">Public Applicant Message<textarea name="publicMessage" rows="3">${esc(app.publicMessage || '')}</textarea></label><button class="button">Save Owner Review</button></form>`;
+  }
+
   if (canFinalDecision()) {
-    return `<h3>Reviewer Action</h3><form id="reviewForm" class="form split"><label>Status<select name="status"><option>submitted</option><option>underReview</option><option>interviewRequested</option><option>interviewCompleted</option><option>pendingFinalDecision</option><option>accepted</option><option>denied</option><option>archived</option></select></label><label>Recommendation<select name="recommendation">${recommendationOptions(app.reviewerRecommendation || '')}</select></label><label class="full">Private Note<textarea name="note" rows="4"></textarea></label><label class="full">Public Applicant Message<textarea name="publicMessage" rows="3">${esc(app.publicMessage || '')}</textarea></label><button class="button">Save Review</button></form>`;
+    return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><div class="notice"><strong>Status is automatic.</strong><br>Only owners can manually adjust application status. Submitting a recommendation moves this application to Awaiting Final Decision.</div><label>Recommendation<select name="recommendation">${recommendationOptions(app.reviewerRecommendation || '')}</select></label><label>Private Note<textarea name="note" rows="4"></textarea></label><label>Public Applicant Message<textarea name="publicMessage" rows="3">${esc(app.publicMessage || '')}</textarea></label><button class="button">Save Review</button></form>`;
   }
 
   if (hasRecommendation(app)) {
-    return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><div class="notice"><strong>Recommendation locked.</strong><br>Recommendation: ${esc(app.reviewerRecommendation)}<br>Only executives or owners can change an existing recommendation or make a final decision.</div><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Save Note</button></form>`;
+    return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><div class="notice"><strong>Recommendation locked.</strong><br>Recommendation: ${esc(app.reviewerRecommendation)}<br>Only executives or owners can change an existing recommendation. Only owners can manually change status.</div><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Save Note</button></form>`;
   }
 
-  return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><label>Recommendation<select name="recommendation" required>${recommendationOptions('')}</select></label><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Submit Recommendation</button></form>`;
+  return `<h3>Reviewer Action</h3><form id="reviewForm" class="form"><div class="notice"><strong>Status is automatic.</strong><br>Submitting a recommendation moves this application to Awaiting Final Decision.</div><label>Recommendation<select name="recommendation" required>${recommendationOptions('')}</select></label><label>Private Note<textarea name="note" rows="4"></textarea></label><button class="button">Submit Recommendation</button></form>`;
 }
 
 function applicantInfoCard(app, applicantProfile) {
@@ -99,6 +118,23 @@ function conflictDisclosureCard(app) {
 function ownerDangerZone(app) {
   if (!owner()) return '';
   return `<section class="notice"><h3>Owner Danger Zone</h3><p class="muted">Delete this submitted application response. This removes the application record and attempts to remove related internal review notes.</p><button class="button quiet" id="deleteThisResponse">Delete Application Response</button></section>`;
+}
+
+async function autoMarkUnderReview(appId, app) {
+  const autoStatuses = ['', 'submitted'];
+  if (!autoStatuses.includes(String(app.status || ''))) return app;
+  try {
+    await updateDoc(doc(db, 'applications', appId), {
+      status: 'underReview',
+      reviewedBy: profile.uid,
+      reviewedByUsername: profile.discordUsername,
+      updatedAt: serverTimestamp()
+    });
+    return { ...app, status: 'underReview' };
+  } catch (error) {
+    console.warn('Automatic Under Review status update failed. Firestore rules may need the review workflow update.', error);
+    return app;
+  }
 }
 
 async function deleteApplicationResponse(appId, applicantName = 'this applicant', messageSelector = '#reviewMsg') {
@@ -134,7 +170,8 @@ async function reviewOne(appId) {
   try {
     const appSnap = await getDoc(doc(db, 'applications', appId));
     if (!appSnap.exists()) return shell('<section class="panel"><h1>Application not found</h1></section>');
-    const app = { id: appSnap.id, ...appSnap.data() };
+    let app = { id: appSnap.id, ...appSnap.data() };
+    app = await autoMarkUnderReview(appId, app);
     let applicantProfile = null;
     if (app.applicantUid) {
       try { applicantProfile = await getProfile(app.applicantUid); } catch (error) { console.warn('Applicant profile failed to load.', error); }
@@ -147,7 +184,6 @@ async function reviewOne(appId) {
       console.warn('Notes failed to load.', error);
     }
     shell(`<section class="panel wide"><p class="eyebrow">Reviewer Workspace</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1>${badge(app.status)}</div>${applicantInfoCard(app, applicantProfile)}${conflictDisclosureCard(app)}<h3>Application Responses</h3>${Object.entries(app.answers || {}).map(([key, value]) => `<div class="answer"><strong>${esc(key)}</strong><p>${esc(value)}</p></div>`).join('') || '<p class="muted">No responses found.</p>'}${reviewerActionForm(app)}<h3>Internal Notes</h3>${notes.map(note => `<div class="note"><p>${esc(note.note || '')}</p><span>${esc(note.createdByUsername || '')}</span></div>`).join('') || '<p class="muted">No notes yet.</p>'}${ownerDangerZone(app)}<div id="reviewMsg"></div></section>`);
-    if (canFinalDecision()) document.querySelector('[name="status"]').value = app.status || 'submitted';
     document.querySelector('#deleteThisResponse')?.addEventListener('click', () => deleteApplicationResponse(appId, app.applicantDiscordUsername || 'this applicant', '#reviewMsg'));
     document.querySelector('#reviewForm').onsubmit = async event => {
       event.preventDefault();
@@ -161,16 +197,21 @@ async function reviewOne(appId) {
           updatedAt: serverTimestamp()
         };
 
-        if (canFinalDecision()) {
+        if (owner()) {
           updates.status = form.get('status');
           updates.reviewerRecommendation = form.get('recommendation');
           updates.publicMessage = form.get('publicMessage') || '';
           if (['accepted', 'denied'].includes(updates.status)) updates.decision = updates.status;
+        } else if (canFinalDecision()) {
+          updates.reviewerRecommendation = form.get('recommendation');
+          updates.publicMessage = form.get('publicMessage') || '';
+          if (updates.reviewerRecommendation) updates.status = 'pendingFinalDecision';
         } else if (!hasRecommendation(app)) {
           updates.reviewerRecommendation = form.get('recommendation');
+          if (updates.reviewerRecommendation) updates.status = 'pendingFinalDecision';
         }
 
-        const shouldUpdateApplication = canFinalDecision() || (!hasRecommendation(app) && updates.reviewerRecommendation);
+        const shouldUpdateApplication = owner() || canFinalDecision() || (!hasRecommendation(app) && updates.reviewerRecommendation);
         if (shouldUpdateApplication) await updateDoc(doc(db, 'applications', appId), updates);
 
         const note = String(form.get('note') || '').trim();
