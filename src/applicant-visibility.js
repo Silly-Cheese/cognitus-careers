@@ -4,6 +4,7 @@ import './review-final-tools.js';
 import './executive-workflow-plus.js';
 import './account-notes.js';
 import './portal-suite-plus.js';
+import './dashboard-safe-fix.js';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
@@ -36,7 +37,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${canStaff() ? '<a href="#/review">Review</a>' : ''}${canExecutive() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span><button class="ghost" id="signOutBtn">Sign Out</button>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ApplicantVisibility v4</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${canStaff() ? '<a href="#/review">Review</a>' : ''}${canExecutive() ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span><button class="ghost" id="signOutBtn">Sign Out</button>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · ApplicantVisibility v5</footer>`;
   document.querySelector('#signOutBtn')?.addEventListener('click', async () => {
     await signOut(auth);
     go('#/');
