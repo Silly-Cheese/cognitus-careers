@@ -21,9 +21,6 @@
   }
 
   #applicationModal .modal-card > .row:first-child {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 10 !important;
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 12px !important;
@@ -109,14 +106,12 @@
   }
 
   #applicationModal .actions {
-    position: sticky !important;
-    bottom: 0 !important;
-    z-index: 9 !important;
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 10px !important;
-    padding: 12px 0 0 !important;
-    background: rgba(255, 255, 255, .98) !important;
+    padding: 14px 0 0 !important;
+    margin-top: 6px !important;
+    background: transparent !important;
     border-top: 1px solid #dddddd !important;
   }
 
