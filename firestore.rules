@@ -99,6 +99,10 @@ service cloud.firestore {
       allow delete: if finalDecision();
     }
 
+    match /account_notes/{noteId} {
+      allow read, create, update, delete: if owner();
+    }
+
     match /audit_logs/{logId} {
       allow read: if staff();
       allow create: if activeProfile();
