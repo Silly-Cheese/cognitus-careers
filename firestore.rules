@@ -10,38 +10,30 @@ service cloud.firestore {
     function finalDecision() { return activeProfile() && myRole() in ['executive', 'owner']; }
     function owner() { return activeProfile() && myRole() == 'owner'; }
     function assignedReviewer() { return staff() && ('assignedReviewerUid' in resource.data) && resource.data.assignedReviewerUid == request.auth.uid; }
-    function canReadApplication() { return finalDecision() || assignedReviewer(); }
+    function canReviewRead() { return finalDecision() || assignedReviewer(); }
     function firstOwnerNotCreated() { return !exists(/databases/$(database)/documents/system/ownerBootstrap); }
     function ownApplicationId(applicationId) { return applicationId.matches('^' + request.auth.uid + '_.*$'); }
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function noRecommendationYet() { return !('reviewerRecommendation' in resource.data) || resource.data.reviewerRecommendation == ''; }
 
     function autoUnderReview() {
-      return canReadApplication()
+      return canReviewRead()
         && resource.data.status == 'submitted'
         && request.resource.data.status == 'underReview'
         && changedOnly(['status', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
     }
 
-    function reviewerRecommendationWorkflow() {
+    function assignedReviewerRecommendation() {
       return assignedReviewer()
-        && noRecommendationYet()
         && request.resource.data.status == 'pendingFinalDecision'
         && request.resource.data.reviewerRecommendation is string
         && request.resource.data.reviewerRecommendation != ''
         && changedOnly(['status', 'reviewerRecommendation', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
     }
 
-    function reviewerRubricWorkflow() {
+    function assignedReviewerRubric() {
       return assignedReviewer()
         && changedOnly(['scoreProfessionalism', 'scoreExperience', 'scoreCommunication', 'scoreFit', 'scoreTotal', 'scorePercent', 'scoredAt', 'scoredBy', 'scoredByUsername', 'updatedAt']);
-    }
-
-    function executiveRecommendationWorkflow() {
-      return finalDecision()
-        && !owner()
-        && request.resource.data.status == 'pendingFinalDecision'
-        && changedOnly(['status', 'reviewerRecommendation', 'publicMessage', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
     }
 
     match /system/{docId} {
@@ -75,8 +67,8 @@ service cloud.firestore {
     }
 
     match /applications/{applicationId} {
-      allow get: if signedIn() && activeProfile() && (ownApplicationId(applicationId) || canReadApplication());
-      allow list: if signedIn() && activeProfile() && (finalDecision() || resource.data.applicantUid == request.auth.uid || resource.data.assignedReviewerUid == request.auth.uid);
+      allow get: if signedIn() && activeProfile() && (ownApplicationId(applicationId) || staff());
+      allow list: if signedIn() && activeProfile() && (staff() || resource.data.applicantUid == request.auth.uid);
       allow create: if signedIn()
         && activeProfile()
         && applicationId == request.auth.uid + '_' + request.resource.data.formId
@@ -96,16 +88,14 @@ service cloud.firestore {
         || owner()
         || finalDecision()
         || autoUnderReview()
-        || reviewerRecommendationWorkflow()
-        || reviewerRubricWorkflow()
+        || assignedReviewerRecommendation()
+        || assignedReviewerRubric()
       );
       allow delete: if owner();
     }
 
     match /review_notes/{noteId} {
-      allow read: if staff();
-      allow create: if staff();
-      allow update: if staff();
+      allow read, create, update: if staff();
       allow delete: if finalDecision();
     }
 
@@ -114,7 +104,7 @@ service cloud.firestore {
     }
 
     match /notifications/{noteId} {
-      allow read, update: if activeProfile() && (resource.data.recipientUid == request.auth.uid || owner());
+      allow read, update: if activeProfile() && (resource.data.recipientUid == request.auth.uid || owner() || staff());
       allow create: if activeProfile() && (staff() || request.resource.data.recipientUid == request.auth.uid);
       allow delete: if owner();
     }
