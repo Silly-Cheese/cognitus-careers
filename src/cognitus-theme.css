@@ -14,8 +14,10 @@ body {
 }
 
 .brand-mark {
-  background: linear-gradient(135deg, #000000, #3b3b3b) !important;
-  color: #ffffff !important;
+  background: #050505 url('/branding/cognitus-mark.svg') center / 74% no-repeat !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, .18) !important;
 }
 
 .brand strong,
