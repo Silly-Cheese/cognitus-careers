@@ -9,21 +9,22 @@ service cloud.firestore {
     function staff() { return activeProfile() && myRole() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner']; }
     function finalDecision() { return activeProfile() && myRole() in ['executive', 'owner']; }
     function owner() { return activeProfile() && myRole() == 'owner'; }
+    function assignedReviewer() { return staff() && ('assignedReviewerUid' in resource.data) && resource.data.assignedReviewerUid == request.auth.uid; }
+    function canReviewThisApplication() { return finalDecision() || assignedReviewer(); }
     function firstOwnerNotCreated() { return !exists(/databases/$(database)/documents/system/ownerBootstrap); }
     function ownApplicationId(applicationId) { return applicationId.matches('^' + request.auth.uid + '_.*$'); }
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function noRecommendationYet() { return !('reviewerRecommendation' in resource.data) || resource.data.reviewerRecommendation == ''; }
 
     function autoUnderReview() {
-      return staff()
+      return canReviewThisApplication()
         && resource.data.status == 'submitted'
         && request.resource.data.status == 'underReview'
         && changedOnly(['status', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
     }
 
     function reviewerRecommendationWorkflow() {
-      return staff()
-        && !owner()
+      return assignedReviewer()
         && noRecommendationYet()
         && request.resource.data.status == 'pendingFinalDecision'
         && request.resource.data.reviewerRecommendation is string
@@ -69,8 +70,8 @@ service cloud.firestore {
     }
 
     match /applications/{applicationId} {
-      allow get: if signedIn() && activeProfile() && (ownApplicationId(applicationId) || staff());
-      allow list: if signedIn() && activeProfile() && (resource.data.applicantUid == request.auth.uid || staff());
+      allow get: if signedIn() && activeProfile() && (ownApplicationId(applicationId) || canReviewThisApplication());
+      allow list: if signedIn() && activeProfile() && (resource.data.applicantUid == request.auth.uid || canReviewThisApplication());
       allow create: if signedIn()
         && activeProfile()
         && applicationId == request.auth.uid + '_' + request.resource.data.formId
@@ -88,10 +89,9 @@ service cloud.firestore {
           && !('decision' in request.resource.data)
           && !('reviewerNotes' in request.resource.data))
         || owner()
+        || finalDecision()
         || autoUnderReview()
         || reviewerRecommendationWorkflow()
-        || executiveRecommendationWorkflow()
-        || staff()
       );
       allow delete: if owner();
     }
