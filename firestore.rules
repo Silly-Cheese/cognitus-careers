@@ -39,9 +39,10 @@ service cloud.firestore {
     }
 
     match /system/{docId} {
-      allow read: if owner();
+      allow read: if owner() || (signedIn() && docId == 'settings');
       allow create: if signedIn() && docId == 'ownerBootstrap' && firstOwnerNotCreated() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if false;
+      allow create, update: if owner() && docId == 'settings';
+      allow delete: if false;
     }
 
     match /discord_ids/{discordId} {
@@ -90,6 +91,7 @@ service cloud.firestore {
         || autoUnderReview()
         || reviewerRecommendationWorkflow()
         || executiveRecommendationWorkflow()
+        || staff()
       );
       allow delete: if owner();
     }
@@ -101,6 +103,17 @@ service cloud.firestore {
 
     match /account_notes/{noteId} {
       allow read, create, update, delete: if owner();
+    }
+
+    match /notifications/{noteId} {
+      allow read, update: if activeProfile() && (resource.data.recipientUid == request.auth.uid || owner());
+      allow create: if activeProfile() && (staff() || request.resource.data.recipientUid == request.auth.uid);
+      allow delete: if owner();
+    }
+
+    match /interviews/{interviewId} {
+      allow read: if activeProfile() && (staff() || resource.data.applicantUid == request.auth.uid);
+      allow create, update, delete: if staff();
     }
 
     match /audit_logs/{logId} {
