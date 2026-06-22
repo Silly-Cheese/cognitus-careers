@@ -10,7 +10,6 @@ let ready = false;
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const canStaff = () => profile && staffRoles.includes(profile.role);
-const go = path => { location.hash = path; };
 const labels = {
   draft: 'Draft',
   submitted: 'Submitted',
@@ -33,7 +32,7 @@ const descriptions = {
   denied: 'Your application was not approved at this time.',
   archived: 'This application record has been archived.'
 };
-const order = ['submitted', 'underReview', 'pendingFinalDecision'];
+const order = ['submitted', 'underReview', 'pendingFinalDecision', 'interviewRequested', 'interviewCompleted'];
 
 onAuthStateChanged(auth, async current => {
   user = current;
@@ -49,7 +48,7 @@ async function getProfile(uid) {
 }
 
 function shell(content) {
-  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a>${canStaff() ? '<a href="#/review">Review</a>' : ''}${['executive','owner'].includes(profile?.role) ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · Timeline v1</footer>`;
+  root.innerHTML = `<header class="topbar"><div class="brand" onclick="location.hash='#/'"><div class="brand-mark">C</div><div><strong>Cognitus Talent Gateway</strong><span>Careers & Application Review</span></div></div><nav><a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a><a href="#/notifications">Notifications</a><a href="#/profile">Profile</a>${canStaff() ? '<a href="#/review">Review</a>' : ''}${['executive','owner'].includes(profile?.role) ? '<a href="#/executive">Executive</a>' : ''}${profile?.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}${profile ? `<span class="muted">${esc(profile.discordUsername)}</span>` : ''}</nav></header><main>${content}</main><footer>© Cognitus Solutions · Careers Portal · Timeline v2</footer>`;
 }
 
 async function handleStatusRoute() {
@@ -68,12 +67,18 @@ async function handleStatusRoute() {
 }
 
 function renderStatus(app) {
-  shell(`<section class="panel wide"><p class="eyebrow">Application Status</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1><span class="badge badge-${esc(app.status || 'unknown')}">${esc(labels[app.status] || app.status || 'Unknown')}</span></div><p class="muted">Department: ${esc(app.department || 'General')}</p>${timeline(app.status)}${app.decision ? `<div class="notice"><strong>Decision:</strong> ${esc(labels[app.decision] || app.decision)}</div>` : ''}${app.publicMessage ? `<div class="notice">${esc(app.publicMessage)}</div>` : ''}<h3>Your Responses</h3>${Object.entries(app.answers || {}).map(([k,v]) => `<div class="answer"><strong>${esc(k)}</strong><p>${esc(v)}</p></div>`).join('') || '<p class="muted">No responses recorded.</p>'}<h3>Conflict Disclosure</h3><div class="answer"><p>${esc(app.conflictDisclosure || 'None provided.')}</p></div></section>`);
+  shell(`<section class="panel wide"><p class="eyebrow">Application Status</p><div class="row"><h1>${esc(app.formTitle || 'Application')}</h1><span class="badge badge-${esc(app.status || 'unknown')}">${esc(labels[app.status] || app.status || 'Unknown')}</span></div><p class="muted">Department: ${esc(app.department || 'General')}</p>${timeline(app.status)}${interviewCard(app)}${app.decision ? `<div class="notice"><strong>Decision:</strong> ${esc(labels[app.decision] || app.decision)}</div>` : ''}${app.publicMessage ? `<div class="notice">${esc(app.publicMessage)}</div>` : ''}<h3>Your Responses</h3>${Object.entries(app.answers || {}).map(([k,v]) => `<div class="answer"><strong>${esc(k)}</strong><p>${esc(v)}</p></div>`).join('') || '<p class="muted">No responses recorded.</p>'}<h3>Conflict Disclosure</h3><div class="answer"><p>${esc(app.conflictDisclosure || 'None provided.')}</p></div></section>`);
+}
+
+function interviewCard(app) {
+  const hasInterview = ['interviewRequested', 'interviewCompleted'].includes(app.status) || app.interviewTime || app.interviewMethod || app.interviewInstructions || app.interviewerName;
+  if (!hasInterview) return '';
+  return `<section class="notice"><h3>Interview Details</h3><div class="grid two"><div><strong>Date/Time</strong><p>${esc(app.interviewTime || 'Not provided yet.')}</p></div><div><strong>Method</strong><p>${esc(app.interviewMethod || 'Not provided yet.')}</p></div><div><strong>Interviewer</strong><p>${esc(app.interviewerName || app.interviewRequestedByUsername || 'Not provided yet.')}</p></div><div><strong>Status</strong><p>${esc(labels[app.status] || app.status || 'Interview Requested')}</p></div></div><div class="answer"><strong>Instructions</strong><p>${esc(app.interviewInstructions || 'No interview instructions were provided yet.')}</p></div></section>`;
 }
 
 function timeline(status) {
   const final = ['accepted', 'denied'].includes(status) ? status : null;
-  const steps = final ? [...order, final] : order;
+  const steps = final ? [...order.filter(step => step !== 'interviewCompleted' || status === 'accepted' || status === 'denied'), final] : order;
   const currentIndex = final ? steps.length - 1 : Math.max(0, order.indexOf(status));
   return `<section class="notice"><h3>Status Timeline</h3><div class="status-timeline">${steps.map((step, index) => `<div class="timeline-step ${index <= currentIndex ? 'done' : ''}"><strong>${esc(labels[step])}</strong><p>${esc(descriptions[step])}</p></div>`).join('')}</div></section>`;
 }
