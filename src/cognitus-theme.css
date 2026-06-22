@@ -89,7 +89,9 @@ select {
 
 .badge-open,
 .badge-accepted,
-.badge-active {
+.badge-active,
+.badge-underreview,
+.badge-pendingfinaldecision {
   background: #111111 !important;
   color: #ffffff !important;
 }
@@ -113,6 +115,35 @@ select {
 .error {
   background: #fee2e2 !important;
   color: #991b1b !important;
+}
+
+.status-timeline {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.timeline-step {
+  border: 1px solid #d7d7d7;
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: #ffffff;
+  opacity: .55;
+}
+
+.timeline-step.done {
+  border-color: #111111;
+  opacity: 1;
+  box-shadow: inset 4px 0 0 #111111;
+}
+
+.timeline-step p {
+  margin: 6px 0 0;
+  color: #666666;
+}
+
+#reviewQueueTools {
+  margin-bottom: 18px;
 }
 
 nav a,
