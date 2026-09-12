@@ -1,0 +1,248 @@
+/* Cognitus Talent Gateway — unified Review Center */
+
+.tg-review-head { margin-bottom: 22px !important; }
+.tg-review-head h1 { margin-bottom: 8px !important; }
+
+.tg-review-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 18px;
+}
+.tg-review-stats > div {
+  padding: 16px 18px;
+  border: 1px solid rgba(0,0,0,.09);
+  border-radius: 18px;
+  background: rgba(255,255,255,.84);
+  box-shadow: 0 8px 26px rgba(0,0,0,.035);
+}
+.tg-review-stats span {
+  display: block;
+  margin-bottom: 6px;
+  color: #77777c;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.tg-review-stats strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.tg-review-panel { padding: 0 !important; overflow: hidden; }
+.tg-review-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(150px, .7fr) minmax(170px, .8fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 18px;
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  background: rgba(250,250,251,.88);
+}
+.tg-review-toolbar label { display: grid; gap: 6px; margin: 0 !important; }
+.tg-review-toolbar label > span {
+  color: #626267;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.tg-review-toolbar input,
+.tg-review-toolbar select {
+  min-height: 42px;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+.tg-review-count {
+  align-self: center;
+  padding: 0 2px 11px;
+  color: #7a7a7f;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tg-table-wrap { width: 100%; overflow-x: auto; }
+.tg-review-table { min-width: 920px; margin: 0 !important; }
+.tg-review-table th { white-space: nowrap; }
+.tg-review-table td { vertical-align: middle; }
+.tg-review-table tbody tr[hidden] { display: none !important; }
+.tg-review-table tbody tr:hover { background: rgba(0,0,0,.018); }
+.tg-review-sub {
+  display: block;
+  margin-top: 4px;
+  color: #788ba0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.tg-review-actions { white-space: nowrap; }
+.tg-review-actions .button + .button { margin-left: 6px; }
+.tg-review-empty { padding: 26px; color: #75757a; text-align: center; }
+
+.tg-review-detail { max-width: 1180px !important; padding: 0 !important; overflow: hidden; }
+.tg-detail-top { padding: 26px 28px 24px; border-bottom: 1px solid rgba(0,0,0,.08); }
+.tg-back-link {
+  display: inline-flex;
+  margin-bottom: 18px;
+  color: #66666b;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.tg-back-link:hover { color: #111; }
+.tg-detail-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  align-items: flex-end;
+}
+.tg-detail-heading h1 { margin: 3px 0 5px !important; }
+
+.tg-applicant-card,
+.tg-detail-section {
+  margin: 22px 28px 0;
+  padding: 22px;
+  border: 1px solid rgba(0,0,0,.085);
+  border-radius: 20px;
+  background: rgba(250,250,251,.78);
+}
+.tg-section-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.tg-section-title h2 { margin: 2px 0 0 !important; font-size: 22px !important; }
+.tg-section-title > span { color: #77777d; font-size: 12px; font-weight: 800; }
+
+.tg-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.tg-info-grid > div {
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid rgba(0,0,0,.07);
+  border-radius: 14px;
+  background: #fff;
+}
+.tg-info-grid span {
+  display: block;
+  margin-bottom: 5px;
+  color: #77777c;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.tg-info-grid strong { display: block; overflow-wrap: anywhere; font-size: 14px; }
+
+.tg-disclosure {
+  padding: 16px;
+  border-radius: 14px;
+  background: #fff;
+  line-height: 1.6;
+}
+.tg-disclosure.is-empty { color: #7b7b80; font-style: italic; }
+
+.tg-response-list,
+.tg-note-list { display: grid; gap: 11px; }
+.tg-response {
+  padding: 17px 18px;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 15px;
+  background: #fff;
+}
+.tg-response > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8a8a8f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.tg-response strong { display: block; font-size: 14px; }
+.tg-response p { margin: 10px 0 0 !important; color: #505056; line-height: 1.65; white-space: pre-wrap; }
+
+.tg-review-tools { background: linear-gradient(180deg, rgba(248,248,249,.96), rgba(245,245,247,.82)); }
+.tg-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.tg-tool-grid label,
+.tg-rubric-grid label { display: grid; gap: 7px; margin: 0 !important; }
+.tg-tool-grid label > span,
+.tg-rubric-grid label > span {
+  color: #56565b;
+  font-size: 12px;
+  font-weight: 800;
+}
+.tg-tool-grid .full { grid-column: 1 / -1; }
+.tg-review-tools input,
+.tg-review-tools select,
+.tg-review-tools textarea { box-shadow: none !important; }
+.tg-rubric {
+  display: grid;
+  grid-template-columns: minmax(180px, .6fr) minmax(0, 1.4fr);
+  gap: 22px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0,0,0,.08);
+}
+.tg-rubric h3 { margin: 0 0 4px !important; }
+.tg-rubric p { margin: 0 !important; color: #77777c; font-size: 12px; }
+.tg-rubric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tg-tool-actions { margin-top: 18px !important; }
+
+.tg-decision-card form { margin-top: 2px; }
+.tg-decision-card .notice { margin: 0 0 14px !important; }
+
+.tg-danger-zone {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  align-items: center;
+  margin-bottom: 28px;
+  border-color: rgba(0,0,0,.14);
+}
+.tg-danger-zone h2 { margin: 2px 0 4px !important; }
+.tg-danger-zone p { margin: 0 !important; }
+
+#reviewMsg,
+#suiteReviewMsg { margin: 16px 28px 24px; }
+#suiteReviewMsg { margin-left: 0; margin-right: 0; margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .tg-review-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tg-review-toolbar { grid-template-columns: 1fr 1fr; }
+  .tg-review-search { grid-column: 1 / -1; }
+  .tg-review-count { padding-bottom: 10px; }
+  .tg-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tg-rubric { grid-template-columns: 1fr; }
+  .tg-rubric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .tg-review-stats { grid-template-columns: 1fr 1fr; }
+  .tg-review-stats > div:first-child { grid-column: 1 / -1; }
+  .tg-review-toolbar { grid-template-columns: 1fr; }
+  .tg-review-search { grid-column: auto; }
+  .tg-review-count { padding: 0; }
+  .tg-detail-top { padding: 22px 18px; }
+  .tg-detail-heading { align-items: flex-start; flex-direction: column; }
+  .tg-applicant-card,
+  .tg-detail-section { margin-left: 14px; margin-right: 14px; padding: 17px; }
+  .tg-info-grid,
+  .tg-tool-grid,
+  .tg-rubric-grid { grid-template-columns: 1fr; }
+  .tg-tool-grid .full { grid-column: auto; }
+  .tg-danger-zone { align-items: stretch; flex-direction: column; }
+  #reviewMsg { margin-left: 14px; margin-right: 14px; }
+}
