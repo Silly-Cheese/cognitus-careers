@@ -1,0 +1,220 @@
+/* Cognitus Talent Gateway — final application-page polish */
+
+/* The old UX layer created a repeated draft-tip element. It is retired in JS;
+   hide any stale cached remnants as an extra safety net. */
+.tg-browse-hint { display: none !important; }
+
+/* Keep the current helper compact instead of allowing it to dominate the page. */
+.tg-final-tip {
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18px;
+  margin: 0 0 18px !important;
+  padding: 11px 14px !important;
+  border-radius: 14px !important;
+  background: rgba(255,255,255,.68) !important;
+  box-shadow: none !important;
+}
+
+/* Applications should feel like a hiring inbox, not giant floating cards. */
+.tg-applications .page-head {
+  margin-bottom: 18px !important;
+}
+
+.tg-applications .page-head h1 {
+  margin-bottom: 4px !important;
+}
+
+.tg-applications .tg-opportunity-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0,0,0,.09);
+  border-radius: 16px;
+  background: rgba(255,255,255,.78);
+  box-shadow: 0 8px 28px rgba(0,0,0,.035);
+}
+
+.tg-applications .tg-search-wrap {
+  position: relative;
+}
+
+.tg-applications .tg-search-wrap::before {
+  content: "⌕";
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-52%);
+  color: #777;
+  font-size: 17px;
+  pointer-events: none;
+}
+
+.tg-applications .tg-opportunity-search {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px 9px 38px !important;
+  border: 1px solid #d7d7d9 !important;
+  border-radius: 12px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.tg-applications .tg-opportunity-search:focus {
+  border-color: #111 !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.07) !important;
+  outline: none;
+}
+
+.tg-applications .tg-result-count {
+  min-width: 112px;
+  text-align: right;
+  color: #6f6f73;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tg-applications .grid.cards {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 11px !important;
+}
+
+.tg-applications .grid.cards > .card {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
+  column-gap: 28px;
+  row-gap: 6px;
+  min-height: 0 !important;
+  padding: 18px 20px 18px 22px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(0,0,0,.09) !important;
+  background: rgba(255,255,255,.9) !important;
+  box-shadow: 0 7px 24px rgba(0,0,0,.035) !important;
+  overflow: hidden;
+  contain-intrinsic-size: 150px !important;
+}
+
+.tg-applications .grid.cards > .card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 999px;
+  background: #111;
+  opacity: .85;
+}
+
+.tg-applications .grid.cards > .card:hover {
+  transform: translateY(-1px) !important;
+  border-color: rgba(0,0,0,.16) !important;
+  box-shadow: 0 12px 34px rgba(0,0,0,.06) !important;
+}
+
+.tg-applications .grid.cards > .card .row {
+  grid-column: 1;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  margin: 0 !important;
+}
+
+.tg-applications .grid.cards > .card .row h3 {
+  margin: 0 !important;
+  font-size: 20px !important;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+
+.tg-applications .grid.cards > .card > .muted {
+  grid-column: 1;
+  margin: 0 !important;
+  font-size: 12px;
+  font-weight: 700;
+  color: #777 !important;
+}
+
+.tg-applications .grid.cards > .card > p:not(.muted) {
+  grid-column: 1;
+  max-width: 760px;
+  margin: 3px 0 0 !important;
+  color: #59595e;
+  line-height: 1.55;
+}
+
+.tg-applications .grid.cards > .card > .button,
+.tg-applications .grid.cards > .card > button.button {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  min-width: 122px;
+  min-height: 42px;
+  margin: 0 !important;
+  white-space: nowrap;
+}
+
+.tg-applications .grid.cards > .card .badge {
+  padding: 4px 9px !important;
+  font-size: 10px !important;
+  letter-spacing: .04em;
+}
+
+.tg-applications .tg-no-results {
+  padding: 28px;
+  border: 1px dashed #cfcfd2;
+  border-radius: 18px;
+  text-align: center;
+  color: #707075;
+  background: rgba(255,255,255,.58);
+}
+
+/* Slightly cheaper effects on the busiest view. */
+.tg-applications .card,
+.tg-applications .button,
+.tg-applications input {
+  transition-duration: .12s !important;
+}
+
+@media (max-width: 720px) {
+  .tg-final-tip {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .tg-applications .tg-opportunity-tools {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .tg-applications .tg-result-count {
+    text-align: left;
+  }
+
+  .tg-applications .grid.cards > .card {
+    grid-template-columns: 1fr;
+    padding: 17px !important;
+  }
+
+  .tg-applications .grid.cards > .card .row,
+  .tg-applications .grid.cards > .card > .muted,
+  .tg-applications .grid.cards > .card > p:not(.muted),
+  .tg-applications .grid.cards > .card > .button,
+  .tg-applications .grid.cards > .card > button.button {
+    grid-column: 1;
+  }
+
+  .tg-applications .grid.cards > .card > .button,
+  .tg-applications .grid.cards > .card > button.button {
+    grid-row: auto;
+    width: 100%;
+    margin-top: 8px !important;
+  }
+}
