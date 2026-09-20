@@ -129,57 +129,18 @@ function home() {
 
 function signin() {
   if (profile) return go('#/dashboard');
-  shell(`<section class="panel narrow"><p class="eyebrow">Sign In</p><h1>Welcome back.</h1><p class="muted">Use verified Discord sign-in, or use your existing Talent Gateway credentials.</p><div class="actions"><a class="button" href="${esc(discordOAuthUrl())}">Continue with Discord</a></div><p class="muted" style="margin-top:18px">Or sign in with your existing Discord User ID and password.</p><form id="loginForm" class="form"><label>Discord User ID<input name="discordId" inputmode="numeric" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button secondary">Use Talent Gateway Password</button></form><p class="muted">Need an account? <a href="#/register">Create one here.</a></p><div id="msg"></div></section>`);
+  shell(`<section class="panel narrow"><p class="eyebrow">Discord Sign In</p><h1>Welcome back.</h1><p class="muted">The Talent Gateway now uses verified Discord authentication for sign-in.</p><div class="actions"><a class="button" href="${esc(discordOAuthUrl())}">Continue with Discord</a></div><p class="muted" style="margin-top:18px">Your existing applications, role, and account history remain attached to the same Talent Gateway identity.</p><p class="muted">Need an account? <a href="#/register">Create one with Discord.</a></p><div id="msg"></div></section>`);
   const oauthError = sessionStorage.getItem('cognitusDiscordOAuthError');
   if (oauthError) {
     sessionStorage.removeItem('cognitusDiscordOAuthError');
     const msg = document.querySelector('#msg');
     if (msg) msg.innerHTML = `<p class="error">${esc(oauthError)}</p>`;
   }
-  document.querySelector('#loginForm').onsubmit = async event => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const msg = document.querySelector('#msg');
-    msg.innerHTML = '<p class="muted">Signing in…</p>';
-    try {
-      await signInWithEmailAndPassword(auth, authEmail(form.get('discordId')), String(form.get('password') || ''));
-      go('#/dashboard');
-    } catch (error) {
-      msg.innerHTML = `<p class="error">Sign in failed: ${esc(error.message)}</p>`;
-    }
-  };
 }
 
 function register() {
   if (profile) return go('#/dashboard');
-  shell(`<section class="panel narrow"><p class="eyebrow">Applicant Registration</p><h1>Create your account</h1><p class="muted">No real email is collected. Your Discord ID is your login.</p><form id="registerForm" class="form"><label>Discord Username<input name="discordUsername" autocomplete="nickname" required></label><label>Discord User ID<input name="discordId" inputmode="numeric" autocomplete="username" required></label><label>Roblox Username, optional<input name="robloxUsername"></label><label>Password<input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button">Create Account</button></form><p class="muted">Already have an account? <a href="#/signin">Sign in here.</a></p><div id="msg"></div></section>`);
-  document.querySelector('#registerForm').onsubmit = async event => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const msg = document.querySelector('#msg');
-    msg.innerHTML = '<p class="muted">Creating account…</p>';
-    try {
-      const id = cleanId(form.get('discordId'));
-      const name = String(form.get('discordUsername') || '').trim();
-      const cred = await createUserWithEmailAndPassword(auth, authEmail(id), String(form.get('password') || ''));
-      await updateProfile(cred.user, { displayName: name });
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        uid: cred.user.uid,
-        discordUsername: name,
-        discordId: id,
-        robloxUsername: String(form.get('robloxUsername') || '').trim(),
-        role: 'applicant',
-        accountStatus: 'active',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      await setDoc(doc(db, 'discord_ids', id), { uid: cred.user.uid, createdAt: serverTimestamp() });
-      profile = await getProfile(cred.user.uid);
-      go('#/dashboard');
-    } catch (error) {
-      msg.innerHTML = `<p class="error">Account was not created: ${esc(error.message)}</p>`;
-    }
-  };
+  shell(`<section class="panel narrow"><p class="eyebrow">Verified Discord Registration</p><h1>Create your Talent Gateway account.</h1><p class="muted">Account creation begins with Discord. Cognitus will verify your Discord identity, detect any existing Main or Talent records, and create only what is missing.</p><div class="actions"><a class="button" href="${esc(discordOAuthUrl())}">Create Account with Discord</a></div><p class="muted" style="margin-top:18px">Already have an account? <a href="#/signin">Sign in with Discord.</a></p><div id="msg"></div></section>`);
 }
 
 async function applications(token) {
