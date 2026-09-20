@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   updateProfile
 } from 'firebase/auth';
@@ -22,6 +23,8 @@ const root = document.querySelector('#app');
 const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const executiveRoles = ['executive', 'owner'];
 const delegatedRoutes = new Set(['dashboard', 'review', 'executive', 'owner', 'notifications', 'profile']);
+const COGNITUS_AUTH_BASE = 'https://auth.cognitus-solutions.org';
+const COGNITUS_PORTAL_KEY = 'talent';
 
 let user = null;
 let profile = null;
@@ -52,12 +55,44 @@ const label = value => ({
 }[value] || value || 'Unknown');
 const badge = value => `<span class="badge badge-${String(value || 'unknown').toLowerCase()}">${esc(label(value))}</span>`;
 
-onAuthStateChanged(auth, async current => {
-  user = current;
-  profile = current ? await getProfile(current.uid) : null;
-  ready = true;
-  render();
-});
+const discordOAuthUrl = () => `${COGNITUS_AUTH_BASE}/discord/start?portal=${COGNITUS_PORTAL_KEY}`;
+
+async function completeDiscordOAuthIfPresent() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('cognitus_oauth') !== '1') return false;
+  try {
+    const response = await fetch(
+      `${COGNITUS_AUTH_BASE}/session/exchange?portal=${COGNITUS_PORTAL_KEY}`,
+      { credentials: 'include', headers: { Accept: 'application/json' } }
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.customToken) {
+      throw new Error(payload.error || 'Discord sign-in could not be completed.');
+    }
+    await signInWithCustomToken(auth, payload.customToken);
+    sessionStorage.removeItem('cognitusDiscordOAuthError');
+    history.replaceState(null, '', `${location.pathname}#/dashboard`);
+    return true;
+  } catch (error) {
+    sessionStorage.setItem(
+      'cognitusDiscordOAuthError',
+      error?.message || 'Discord sign-in could not be completed.'
+    );
+    history.replaceState(null, '', `${location.pathname}#/signin`);
+    return false;
+  }
+}
+
+async function bootAuth() {
+  await completeDiscordOAuthIfPresent();
+  onAuthStateChanged(auth, async current => {
+    user = current;
+    profile = current ? await getProfile(current.uid) : null;
+    ready = true;
+    render();
+  });
+}
+bootAuth();
 window.addEventListener('hashchange', render);
 
 async function getProfile(uid) {
@@ -94,7 +129,13 @@ function home() {
 
 function signin() {
   if (profile) return go('#/dashboard');
-  shell(`<section class="panel narrow"><p class="eyebrow">Sign In</p><h1>Welcome back.</h1><p class="muted">Enter your Discord User ID and password.</p><form id="loginForm" class="form"><label>Discord User ID<input name="discordId" inputmode="numeric" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button">Sign In</button></form><p class="muted">Need an account? <a href="#/register">Create one here.</a></p><div id="msg"></div></section>`);
+  shell(`<section class="panel narrow"><p class="eyebrow">Sign In</p><h1>Welcome back.</h1><p class="muted">Use verified Discord sign-in, or use your existing Talent Gateway credentials.</p><div class="actions"><a class="button" href="${esc(discordOAuthUrl())}">Continue with Discord</a></div><p class="muted" style="margin-top:18px">Or sign in with your existing Discord User ID and password.</p><form id="loginForm" class="form"><label>Discord User ID<input name="discordId" inputmode="numeric" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button secondary">Use Talent Gateway Password</button></form><p class="muted">Need an account? <a href="#/register">Create one here.</a></p><div id="msg"></div></section>`);
+  const oauthError = sessionStorage.getItem('cognitusDiscordOAuthError');
+  if (oauthError) {
+    sessionStorage.removeItem('cognitusDiscordOAuthError');
+    const msg = document.querySelector('#msg');
+    if (msg) msg.innerHTML = `<p class="error">${esc(oauthError)}</p>`;
+  }
   document.querySelector('#loginForm').onsubmit = async event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
