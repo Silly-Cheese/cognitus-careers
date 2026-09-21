@@ -1,13 +1,13 @@
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from './firebase.js';
+import { TALENT_PERMISSIONS, hasTalentPermission } from './access-control.js?v=access-model-1';
 import { confirmAction } from './confirm-modal.js';
 
 let profile = null;
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-const executiveRoles = ['executive', 'owner'];
-const canExecutive = () => profile && executiveRoles.includes(profile.role);
-const isOwner = () => profile?.role === 'owner';
+const canExecutive = () => hasTalentPermission(profile, TALENT_PERMISSIONS.EXECUTIVE_VIEW);
+const isOwner = () => hasTalentPermission(profile, TALENT_PERMISSIONS.ACCOUNTS_MANAGE);
 
 onAuthStateChanged(auth, async user => {
   profile = user ? await getProfile(user.uid) : null;
