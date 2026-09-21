@@ -16,10 +16,9 @@ import {
   where
 } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
+import { TALENT_PERMISSIONS, hasTalentPermission, talentRoleLabel } from './access-control.js?v=access-model-1';
 
 const root = document.querySelector('#app');
-const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
-const finalDecisionRoles = ['executive', 'owner'];
 const activeStatuses = ['submitted', 'underReview', 'pendingFinalDecision', 'interviewRequested', 'interviewCompleted'];
 const completedStatuses = ['accepted', 'denied', 'archived'];
 
@@ -37,9 +36,11 @@ const esc = (value = '') => String(value ?? '')
 
 const routeParts = () => (location.hash || '#/').replace('#', '').split('/').filter(Boolean);
 const go = path => { location.hash = path; };
-const staff = () => profile && staffRoles.includes(profile.role);
-const owner = () => profile?.role === 'owner';
-const canFinalDecision = () => profile && finalDecisionRoles.includes(profile.role);
+const staff = () => hasTalentPermission(profile, TALENT_PERMISSIONS.REVIEW_QUEUE);
+const owner = () => hasTalentPermission(profile, TALENT_PERMISSIONS.ACCOUNTS_MANAGE);
+const canFinalDecision = () => hasTalentPermission(profile, TALENT_PERMISSIONS.REVIEW_ALL);
+const canAssignReviewer = () => hasTalentPermission(profile, TALENT_PERMISSIONS.REVIEW_ASSIGN);
+const canManageInterviews = () => hasTalentPermission(profile, TALENT_PERMISSIONS.INTERVIEW_MANAGE);
 const timeValue = value => value?.toMillis?.() || (typeof value?.seconds === 'number' ? value.seconds * 1000 : 0);
 const hasRecommendation = app => !!String(app.reviewerRecommendation || '').trim();
 const statusLabel = value => ({
@@ -274,7 +275,7 @@ function conflictDisclosureCard(app) {
 }
 
 function reviewTools(app, reviewers) {
-  const assignment = canFinalDecision() ? `<label><span>Assign Reviewer</span><select id="assignReviewer"><option value="">Unassigned</option>${reviewers.map(reviewer => `<option value="${esc(reviewer.id)}" ${reviewer.id === app.assignedReviewerUid ? 'selected' : ''}>${esc(reviewer.discordUsername || reviewer.id)} — ${esc(roleLabel(reviewer.role))}</option>`).join('')}</select></label>` : '';
+  const assignment = canAssignReviewer() ? `<label><span>Assign Reviewer</span><select id="assignReviewer"><option value="">Unassigned</option>${reviewers.map(reviewer => `<option value="${esc(reviewer.id)}" ${reviewer.id === app.assignedReviewerUid ? 'selected' : ''}>${esc(reviewer.discordUsername || reviewer.id)} — ${esc(roleLabel(reviewer.role))}</option>`).join('')}</select></label>` : '';
   return `<section class="tg-detail-section tg-review-tools" id="reviewSuiteTools"><div class="tg-section-title"><div><p class="eyebrow">Workflow</p><h2>Review Tools</h2></div><span>Score: <strong id="rubricTotal">${rubricTotal(app)}</strong>/20</span></div>
     <div class="tg-tool-grid">
       ${assignment}
@@ -304,7 +305,7 @@ function rubricTotal(app) {
 }
 
 function roleLabel(value) {
-  return ({ reviewer: 'Reviewer', seniorReviewer: 'Senior Reviewer', hiringLead: 'Hiring Lead', executive: 'Executive', owner: 'Owner' }[value] || value || 'Reviewer');
+  return talentRoleLabel(value);
 }
 
 function reviewerActionForm(app) {
@@ -549,7 +550,7 @@ async function loadReviewers() {
     const snap = await getDocs(collection(db, 'users'));
     return snap.docs
       .map(item => ({ id: item.id, ...item.data() }))
-      .filter(item => staffRoles.includes(item.role) && (item.accountStatus || 'active') === 'active')
+      .filter(item => hasTalentPermission(item, TALENT_PERMISSIONS.REVIEW_QUEUE) && (item.accountStatus || 'active') === 'active')
       .sort((a, b) => String(a.discordUsername || '').localeCompare(String(b.discordUsername || '')));
   } catch (error) {
     console.warn('Reviewer directory could not be loaded.', error);
