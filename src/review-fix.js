@@ -276,13 +276,16 @@ function conflictDisclosureCard(app) {
 
 function reviewTools(app, reviewers) {
   const assignment = canAssignReviewer() ? `<label><span>Assign Reviewer</span><select id="assignReviewer"><option value="">Unassigned</option>${reviewers.map(reviewer => `<option value="${esc(reviewer.id)}" ${reviewer.id === app.assignedReviewerUid ? 'selected' : ''}>${esc(reviewer.discordUsername || reviewer.id)} — ${esc(roleLabel(reviewer.role))}</option>`).join('')}</select></label>` : '';
+  const interviewFields = canManageInterviews()
+    ? `<label><span>Interview Date / Time</span><input id="interviewTime" value="${esc(app.interviewTime || '')}" placeholder="Saturday 3:00 PM CST"></label>
+      <label><span>Interview Method</span><input id="interviewMethod" value="${esc(app.interviewMethod || '')}" placeholder="Discord VC / Chat / Roblox"></label>
+      <label><span>Interviewer</span><input id="interviewerName" value="${esc(app.interviewerName || profile.discordUsername || '')}" placeholder="Interviewer name"></label>
+      <label class="full"><span>Interview Instructions</span><textarea id="interviewInstructions" rows="3" placeholder="Add details the applicant should receive…">${esc(app.interviewInstructions || '')}</textarea></label>`
+    : `<div class="notice full"><strong>Interview controls:</strong> Hiring Leads, Executives, and Owners can schedule or change interviews.</div>`;
   return `<section class="tg-detail-section tg-review-tools" id="reviewSuiteTools"><div class="tg-section-title"><div><p class="eyebrow">Workflow</p><h2>Review Tools</h2></div><span>Score: <strong id="rubricTotal">${rubricTotal(app)}</strong>/20</span></div>
     <div class="tg-tool-grid">
       ${assignment}
-      <label><span>Interview Date / Time</span><input id="interviewTime" value="${esc(app.interviewTime || '')}" placeholder="Saturday 3:00 PM CST"></label>
-      <label><span>Interview Method</span><input id="interviewMethod" value="${esc(app.interviewMethod || '')}" placeholder="Discord VC / Chat / Roblox"></label>
-      <label><span>Interviewer</span><input id="interviewerName" value="${esc(app.interviewerName || profile.discordUsername || '')}" placeholder="Interviewer name"></label>
-      <label class="full"><span>Interview Instructions</span><textarea id="interviewInstructions" rows="3" placeholder="Add details the applicant should receive…">${esc(app.interviewInstructions || '')}</textarea></label>
+      ${interviewFields}
     </div>
     <div class="tg-rubric"><div><h3>Rubric Score</h3><p>Use a 1–5 score for each category.</p></div><div class="tg-rubric-grid">
       ${rubricInput('Professionalism', 'scoreProfessionalism', app.scoreProfessionalism)}
@@ -290,7 +293,7 @@ function reviewTools(app, reviewers) {
       ${rubricInput('Communication', 'scoreCommunication', app.scoreCommunication)}
       ${rubricInput('Fit for Role', 'scoreFit', app.scoreFit)}
     </div></div>
-    <div class="actions tg-tool-actions">${canFinalDecision() ? '<button class="button secondary" type="button" id="saveAssignment">Save Assignment</button>' : ''}<button class="button secondary" type="button" id="requestInterview">Request Interview</button><button class="button" type="button" id="saveRubric">Save Rubric</button></div>
+    <div class="actions tg-tool-actions">${canAssignReviewer() ? '<button class="button secondary" type="button" id="saveAssignment">Save Assignment</button>' : ''}${canManageInterviews() ? '<button class="button secondary" type="button" id="requestInterview">Request Interview</button>' : ''}<button class="button" type="button" id="saveRubric">Save Rubric</button></div>
     <div id="suiteReviewMsg"></div>
   </section>`;
 }
