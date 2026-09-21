@@ -2,6 +2,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
 import { confirmAction } from './confirm-modal.js';
+import { TALENT_PERMISSIONS, hasTalentPermission, talentRoleLabel } from './access-control.js?v=access-model-1';
 
 const root = document.querySelector('#app');
 let user = auth.currentUser;
@@ -11,7 +12,7 @@ let ready = false;
 const roles = ['applicant', 'reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(label(v))}</span>`;
-const label = v => ({ pendingFinalDecision: 'Awaiting Final Decision', underReview: 'Under Review', seniorReviewer: 'Senior Reviewer', hiringLead: 'Hiring Lead' }[v] || v || 'Unknown');
+const label = v => ({ pendingFinalDecision: 'Awaiting Final Decision', underReview: 'Under Review', active: 'Active', disabled: 'Disabled' }[v] || (roles.includes(v) ? talentRoleLabel(v) : v) || 'Unknown');
 const go = path => { location.hash = path; };
 const timeValue = value => value?.toMillis ? value.toMillis() : 0;
 const dateText = value => value?.toDate ? value.toDate().toLocaleString() : 'Unknown';
@@ -38,7 +39,7 @@ async function handleOwnerRoute() {
   if (path !== 'owner') return;
   if (!ready) return shell('<section class="panel"><h1>Loading owner console...</h1></section>');
   if (!user || !profile) return go('#/signin');
-  if (profile.role !== 'owner') return shell('<section class="panel"><h1>Access denied</h1><p class="muted">Only owners can manage accounts.</p></section>');
+  if (!hasTalentPermission(profile, TALENT_PERMISSIONS.ACCOUNTS_MANAGE)) return shell('<section class="panel"><h1>Access denied</h1><p class="muted">Your Talent role does not include account-management permission.</p></section>');
   if (action === 'audit') return auditLogPage();
   if (['recovery', 'settings', 'exports'].includes(action)) return;
   return ownerConsole();
@@ -76,7 +77,7 @@ async function ownerConsole() {
     ].join('');
 
     const rows = users.map(account => accountRow(account)).join('') || '<tr><td colspan="6">No users found.</td></tr>';
-    shell(`<section class="page-head"><div><p class="eyebrow">Owner Console</p><h1>Account Management</h1><p class="muted">Dashboard stats, user controls, role permissions, and audit tools.</p></div><div class="actions"><a class="button secondary" href="#/owner/audit">Audit Log</a><a class="button secondary" href="#/owner/recovery">Recovery</a><a class="button secondary" href="#/owner/exports">Exports</a><a class="button secondary" href="#/owner/settings">Settings</a></div></section><section class="grid cards">${stats}</section><section class="panel"><h2>Account Directory</h2><div id="ownerMessage"></div><div class="form split"><label>Search<input id="ownerSearch" placeholder="Discord username, Roblox username, Discord ID"></label><label>Filter Role<select id="ownerRoleFilter"><option value="">All Roles</option>${roles.map(role => `<option value="${role}">${esc(label(role))}</option>`).join('')}</select></label><label>Filter Status<select id="ownerStatusFilter"><option value="">All Statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label></div><table id="ownerAccountsTable"><thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Status</th><th>New Role</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table><div class="notice"><strong>Role permissions:</strong><br>Applicant — apply and view status.<br>Reviewer/Senior Reviewer/Hiring Lead — review and submit recommendations.<br>Executive — manage forms and submit recommendations.<br>Owner — full portal control, final decisions, account management, and audit access.</div><div class="notice"><strong>Note:</strong> Disable blocks portal usage. Enable restores accountStatus to active. Delete removes the Firestore portal profile and Discord ID mapping, not the Firebase Authentication login.</div></section>`);
+    shell(`<section class="page-head"><div><p class="eyebrow">Owner Console</p><h1>Account Management</h1><p class="muted">Dashboard stats, user controls, role permissions, and audit tools.</p></div><div class="actions"><a class="button secondary" href="#/owner/audit">Audit Log</a><a class="button secondary" href="#/owner/recovery">Recovery</a><a class="button secondary" href="#/owner/exports">Exports</a><a class="button secondary" href="#/owner/settings">Settings</a></div></section><section class="grid cards">${stats}</section><section class="panel"><h2>Account Directory</h2><div id="ownerMessage"></div><div class="form split"><label>Search<input id="ownerSearch" placeholder="Discord username, Roblox username, Discord ID"></label><label>Filter Role<select id="ownerRoleFilter"><option value="">All Roles</option>${roles.map(role => `<option value="${role}">${esc(label(role))}</option>`).join('')}</select></label><label>Filter Status<select id="ownerStatusFilter"><option value="">All Statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label></div><table id="ownerAccountsTable"><thead><tr><th>User</th><th>Discord ID</th><th>Role</th><th>Status</th><th>New Role</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table><div class="notice"><strong>Role permissions are explicit, not inherited by rank.</strong><br>Applicant — own applications/profile/notifications.<br>Reviewer — assigned reviews, scoring, recommendations.<br>Senior Reviewer — reviewer access plus queue-wide review and reviewer assignment.<br>Hiring Lead — senior review plus interviews and hiring workflow management.<br>Executive — hiring workflow plus application-form management and executive reporting; no Owner-only final decision or account administration.<br>Owner — final decisions, accounts, recovery, exports, settings, and full portal control.</div><div class="notice"><strong>Note:</strong> Disable blocks portal usage. Enable restores accountStatus to active. Delete removes the Firestore portal profile and Discord ID mapping, not the Firebase Authentication login.</div></section>`);
     wireAccountButtons();
     ['ownerSearch', 'ownerRoleFilter', 'ownerStatusFilter'].forEach(id => document.querySelector(`#${id}`).addEventListener('input', filterOwnerAccounts));
   } catch (error) {
@@ -136,10 +137,23 @@ async function audit(action, data = {}) {
 async function saveRole(uid) {
   const msg = document.querySelector('#ownerMessage');
   const role = document.querySelector(`[data-role-select="${uid}"]`).value;
+  const target = await getProfile(uid);
+  if (uid === profile.uid && role !== 'owner') {
+    msg.innerHTML = '<p class="error">For lockout protection, the active Owner cannot remove their own Owner role from this console.</p>';
+    return;
+  }
+  if (role === 'owner' && target?.role !== 'owner') {
+    const confirmed = await confirmAction({ title: 'Grant Owner Access?', message: `Grant full Owner authority to ${target?.discordUsername || uid}?`, details: 'Owner access includes final hiring decisions, account administration, recovery, exports, settings, and destructive controls.', confirmText: 'Grant Owner', cancelText: 'Cancel', danger: true });
+    if (!confirmed) return;
+  }
+  if (target?.role === 'owner' && role !== 'owner') {
+    const confirmed = await confirmAction({ title: 'Remove Owner Access?', message: `Change ${target?.discordUsername || uid} from Owner to ${talentRoleLabel(role)}?`, details: 'This removes Owner-only account administration and final-decision authority.', confirmText: 'Change Role', cancelText: 'Cancel', danger: true });
+    if (!confirmed) return;
+  }
   msg.innerHTML = '<p class="muted">Saving role...</p>';
   try {
     await updateDoc(doc(db, 'users', uid), { role, updatedAt: serverTimestamp(), updatedBy: profile.uid, updatedByUsername: profile.discordUsername });
-    await audit('OWNER_CHANGED_ROLE', { targetUid: uid, details: `Role changed to ${role}` });
+    await audit('OWNER_CHANGED_ROLE', { targetUid: uid, details: `Role changed from ${target?.role || 'unknown'} to ${role}` });
     if (uid === profile.uid) profile = await getProfile(uid);
     ownerConsole();
   } catch (error) {
