@@ -324,7 +324,7 @@ function reviewerActionForm(app) {
   }
 
   if (canFinalDecision()) {
-    return `<section class="tg-detail-section tg-decision-card"><div class="tg-section-title"><div><p class="eyebrow">Recommendation</p><h2>Executive Review Action</h2></div></div><form id="reviewForm" class="form">
+    return `<section class="tg-detail-section tg-decision-card"><div class="tg-section-title"><div><p class="eyebrow">Recommendation</p><h2>${esc(roleLabel(profile.role))} Review Action</h2></div></div><form id="reviewForm" class="form">
       <div class="notice"><strong>Status is automatic.</strong><br>A recommendation moves the application to Awaiting Final Decision. Owners make the final status change.</div>
       <label><span>Recommendation</span><select name="recommendation">${recommendationOptions(app.reviewerRecommendation || '')}</select></label>
       <label><span>Private Note</span><textarea name="note" rows="4"></textarea></label>
@@ -334,7 +334,7 @@ function reviewerActionForm(app) {
   }
 
   if (hasRecommendation(app)) {
-    return `<section class="tg-detail-section tg-decision-card"><div class="tg-section-title"><div><p class="eyebrow">Recommendation</p><h2>Reviewer Action</h2></div></div><form id="reviewForm" class="form"><div class="notice"><strong>Recommendation submitted:</strong> ${esc(recommendationLabel(app.reviewerRecommendation))}<br>Only an executive or owner can change an existing recommendation.</div><label><span>Private Note</span><textarea name="note" rows="4"></textarea></label><button class="button" type="submit">Save Note</button></form></section>`;
+    return `<section class="tg-detail-section tg-decision-card"><div class="tg-section-title"><div><p class="eyebrow">Recommendation</p><h2>Reviewer Action</h2></div></div><form id="reviewForm" class="form"><div class="notice"><strong>Recommendation submitted:</strong> ${esc(recommendationLabel(app.reviewerRecommendation))}<br>Only a Senior Reviewer, Hiring Lead, Executive, or Owner can change an existing recommendation.</div><label><span>Private Note</span><textarea name="note" rows="4"></textarea></label><button class="button" type="submit">Save Note</button></form></section>`;
   }
 
   return `<section class="tg-detail-section tg-decision-card"><div class="tg-section-title"><div><p class="eyebrow">Recommendation</p><h2>Reviewer Action</h2></div></div><form id="reviewForm" class="form"><div class="notice"><strong>Status is automatic.</strong><br>Submitting a recommendation moves this application to Awaiting Final Decision.</div><label><span>Recommendation</span><select name="recommendation" required>${recommendationOptions('')}</select></label><label><span>Private Note</span><textarea name="note" rows="4"></textarea></label><button class="button" type="submit">Submit Recommendation</button></form></section>`;
