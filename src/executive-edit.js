@@ -1,9 +1,9 @@
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, serverTimestamp, updateDoc, addDoc } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
+import { TALENT_PERMISSIONS, hasTalentPermission } from './access-control.js?v=access-model-1';
 
 const root = document.querySelector('#app');
-const executiveRoles = ['executive', 'owner'];
 let user = auth.currentUser;
 let profile = null;
 let ready = false;
@@ -13,7 +13,7 @@ let editingFormId = null;
 
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const go = path => { location.hash = path; };
-const executive = () => profile && executiveRoles.includes(profile.role);
+const executive = () => hasTalentPermission(profile, TALENT_PERMISSIONS.FORMS_MANAGE);
 const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(v || 'Unknown')}</span>`;
 const timeValue = value => value?.toMillis ? value.toMillis() : 0;
 
