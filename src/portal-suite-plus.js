@@ -2,22 +2,21 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
 import { confirmAction } from './confirm-modal.js';
+import { TALENT_PERMISSIONS, hasTalentPermission, talentRoleLabel } from './access-control.js?v=access-model-1';
 
 const root = document.querySelector('#app');
 let user = auth.currentUser;
 let profile = null;
 let ready = false;
 
-const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
-const finalRoles = ['executive', 'owner'];
 const esc = (v = '') => String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-const roleLabel = v => ({ seniorReviewer: 'Senior Reviewer', hiringLead: 'Hiring Lead' }[v] || v || 'Unknown');
+const roleLabel = v => talentRoleLabel(v);
 const statusLabel = v => ({ submitted: 'Submitted', underReview: 'Under Review', pendingFinalDecision: 'Awaiting Final Decision', interviewRequested: 'Interview Requested', interviewCompleted: 'Interview Completed', accepted: 'Accepted', denied: 'Denied', archived: 'Archived', draft: 'Draft' }[v] || v || 'Unknown');
 const badge = v => `<span class="badge badge-${String(v || 'unknown').toLowerCase()}">${esc(statusLabel(v))}</span>`;
 const go = path => { location.hash = path; };
-const staff = () => profile && staffRoles.includes(profile.role);
-const finalDecision = () => profile && finalRoles.includes(profile.role);
-const owner = () => profile?.role === 'owner';
+const staff = () => hasTalentPermission(profile, TALENT_PERMISSIONS.REVIEW_QUEUE);
+const finalDecision = () => hasTalentPermission(profile, TALENT_PERMISSIONS.EXECUTIVE_VIEW);
+const owner = () => hasTalentPermission(profile, TALENT_PERMISSIONS.ACCOUNTS_MANAGE);
 const timeValue = value => value?.toMillis ? value.toMillis() : 0;
 const dateText = value => value?.toDate ? value.toDate().toLocaleString() : 'Unknown';
 
@@ -134,7 +133,7 @@ async function enhanceReviewDetail() {
   if (!appSnap.exists()) return;
   const app = { id: appSnap.id, ...appSnap.data() };
   const usersSnap = await getDocs(collection(db, 'users'));
-  const reviewers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => staffRoles.includes(u.role));
+  const reviewers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => hasTalentPermission(u, TALENT_PERMISSIONS.REVIEW_QUEUE));
   const tools = document.createElement('section');
   tools.className = 'notice';
   tools.id = 'reviewSuiteTools';
