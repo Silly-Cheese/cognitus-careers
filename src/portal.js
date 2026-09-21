@@ -18,10 +18,9 @@ import {
   where
 } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
+import { TALENT_PERMISSIONS, hasTalentPermission, talentRoleLabel } from './access-control.js?v=access-model-1';
 
 const root = document.querySelector('#app');
-const staffRoles = ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner'];
-const executiveRoles = ['executive', 'owner'];
 const delegatedRoutes = new Set(['dashboard', 'review', 'executive', 'owner', 'notifications', 'profile']);
 const COGNITUS_AUTH_BASE = 'https://auth.cognitus-solutions.org';
 const COGNITUS_PORTAL_KEY = 'talent';
@@ -44,8 +43,9 @@ const cleanId = value => {
 };
 const authEmail = id => `discord-${cleanId(id)}@cognitus.internal`;
 const go = path => { location.hash = path; };
-const canStaff = () => profile && staffRoles.includes(profile.role);
-const canExecutive = () => profile && executiveRoles.includes(profile.role);
+const canStaff = () => hasTalentPermission(profile, TALENT_PERMISSIONS.REVIEW_QUEUE);
+const canExecutive = () => hasTalentPermission(profile, TALENT_PERMISSIONS.EXECUTIVE_VIEW);
+const canOwner = () => hasTalentPermission(profile, TALENT_PERMISSIONS.ACCOUNTS_MANAGE);
 const timeValue = value => value?.toMillis?.() || (typeof value?.seconds === 'number' ? value.seconds * 1000 : 0);
 const label = value => ({
   draft: 'Draft', submitted: 'Submitted', underReview: 'Under Review',
@@ -102,7 +102,7 @@ async function getProfile(uid) {
 
 function navMarkup() {
   if (!profile) return '<a href="#/">Home</a><a href="#/signin">Sign In</a><a href="#/register">Create Account</a>';
-  return `<a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a><a href="#/notifications">Notifications</a><a href="#/profile">Profile</a>${canStaff() ? '<a href="#/review">Review</a>' : ''}${canExecutive() ? '<a href="#/executive">Executive</a>' : ''}${profile.role === 'owner' ? '<a href="#/owner">Owner</a>' : ''}<span class="muted">${esc(profile.discordUsername || '')}</span><button class="ghost" id="signOutBtn">Sign Out</button>`;
+  return `<a href="#/dashboard">Dashboard</a><a href="#/applications">Applications</a><a href="#/notifications">Notifications</a><a href="#/profile">Profile</a>${canStaff() ? '<a href="#/review">Review</a>' : ''}${canExecutive() ? '<a href="#/executive">Executive</a>' : ''}${canOwner() ? '<a href="#/owner">Owner</a>' : ''}<span class="muted">${esc(profile.discordUsername || '')}</span><button class="ghost" id="signOutBtn">Sign Out</button>`;
 }
 
 function shell(content) {
@@ -124,7 +124,7 @@ function needLogin() {
 }
 
 function home() {
-  shell(`<section class="hero"><div><p class="eyebrow">Cognitus Solutions Careers</p><h1>Find your place at Cognitus.</h1><p class="lead">Apply for open roles, check your status, and keep your application history in one place.</p><div class="actions"><a class="button" href="#/signin">Sign In</a><a class="button secondary" href="#/register">Create Account</a></div></div><div class="hero-card"><h3>For applicants</h3><p>Use your Discord User ID and password to access your account from any device.</p></div></section>`);
+  shell(`<section class="hero"><div><p class="eyebrow">Cognitus Solutions Careers</p><h1>Find your place at Cognitus.</h1><p class="lead">Apply for open roles, check your status, and keep your application history in one place.</p><div class="actions"><a class="button" href="#/signin">Sign In</a><a class="button secondary" href="#/register">Create Account</a></div></div><div class="hero-card"><h3>For applicants</h3><p>Use your verified Discord account to sign in securely from any device.</p></div></section>`);
 }
 
 function signin() {
@@ -166,7 +166,7 @@ async function applications(token) {
       return `<article class="card"><div class="row"><h3>${esc(form.title || 'Opportunity')}</h3>${badge(form.status)}</div><p class="muted">${esc(form.department || 'General')} · ${(form.questions || []).length} question(s)</p><p>${esc(form.description || '')}</p>${existing ? `<p>Your status: ${badge(existing.status)}</p>` : ''}${action}</article>`;
     }).join('') || '<p class="muted">No applications are available right now.</p>';
 
-    shell(`<section class="page-head"><h1>Applications</h1><p class="muted">${profile.role === 'applicant' ? 'Open opportunities and your existing applications appear here.' : 'View application forms and your own submissions.'}</p></section><section class="grid cards">${cards}</section>`);
+    shell(`<section class="page-head"><h1>Applications</h1><p class="muted">${hasTalentPermission(profile, TALENT_PERMISSIONS.REVIEW_QUEUE) ? 'View application forms and your own submissions while review tools remain permission-controlled.' : 'Open opportunities and your existing applications appear here.'}</p></section><section class="grid cards">${cards}</section>`);
     document.querySelectorAll('[data-apply]').forEach(button => { button.onclick = () => go(`#/apply/${button.dataset.apply}`); });
     document.querySelectorAll('[data-status]').forEach(button => { button.onclick = () => go(`#/status/${button.dataset.status}`); });
   } catch (error) {
