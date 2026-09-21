@@ -7,10 +7,13 @@ service cloud.firestore {
     function activeProfile() { return hasProfile() && (!('accountStatus' in myProfile().data) || myProfile().data.accountStatus == 'active'); }
     function myRole() { return hasProfile() ? myProfile().data.role : null; }
     function staff() { return activeProfile() && myRole() in ['reviewer', 'seniorReviewer', 'hiringLead', 'executive', 'owner']; }
-    function finalDecision() { return activeProfile() && myRole() in ['executive', 'owner']; }
+    function reviewManager() { return activeProfile() && myRole() in ['seniorReviewer', 'hiringLead', 'executive', 'owner']; }
+    function hiringManager() { return activeProfile() && myRole() in ['hiringLead', 'executive', 'owner']; }
+    function formManager() { return activeProfile() && myRole() in ['executive', 'owner']; }
+    function auditReader() { return activeProfile() && myRole() in ['executive', 'owner']; }
     function owner() { return activeProfile() && myRole() == 'owner'; }
     function assignedReviewer() { return staff() && ('assignedReviewerUid' in resource.data) && resource.data.assignedReviewerUid == request.auth.uid; }
-    function canReviewRead() { return finalDecision() || assignedReviewer(); }
+    function canReviewRead() { return reviewManager() || assignedReviewer(); }
     function firstOwnerNotCreated() { return !exists(/databases/$(database)/documents/system/ownerBootstrap); }
     function ownApplicationId(applicationId) { return applicationId.matches('^' + request.auth.uid + '_.*$'); }
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
@@ -34,6 +37,24 @@ service cloud.firestore {
     function assignedReviewerRubric() {
       return assignedReviewer()
         && changedOnly(['scoreProfessionalism', 'scoreExperience', 'scoreCommunication', 'scoreFit', 'scoreTotal', 'scorePercent', 'scoredAt', 'scoredBy', 'scoredByUsername', 'updatedAt']);
+    }
+
+    function reviewerAssignmentUpdate() {
+      return reviewManager()
+        && changedOnly(['assignedReviewerUid', 'assignedReviewerUsername', 'assignedAt', 'assignedBy', 'assignedByUsername', 'updatedAt']);
+    }
+
+    function managedRecommendationUpdate() {
+      return reviewManager()
+        && request.resource.data.status == 'pendingFinalDecision'
+        && request.resource.data.reviewerRecommendation is string
+        && changedOnly(['status', 'reviewerRecommendation', 'publicMessage', 'reviewedBy', 'reviewedByUsername', 'updatedAt']);
+    }
+
+    function interviewRequestUpdate() {
+      return hiringManager()
+        && request.resource.data.status == 'interviewRequested'
+        && changedOnly(['status', 'interviewTime', 'interviewMethod', 'interviewerName', 'interviewInstructions', 'interviewRequestedAt', 'interviewRequestedBy', 'interviewRequestedByUsername', 'updatedAt']);
     }
 
     match /system/{docId} {
@@ -62,7 +83,7 @@ service cloud.firestore {
 
     match /application_forms/{formId} {
       allow read: if true;
-      allow create, update: if finalDecision();
+      allow create, update: if formManager();
       allow delete: if owner();
     }
 
@@ -86,7 +107,9 @@ service cloud.firestore {
           && !('decision' in request.resource.data)
           && !('reviewerNotes' in request.resource.data))
         || owner()
-        || finalDecision()
+        || reviewerAssignmentUpdate()
+        || managedRecommendationUpdate()
+        || interviewRequestUpdate()
         || autoUnderReview()
         || assignedReviewerRecommendation()
         || assignedReviewerRubric()
@@ -96,7 +119,7 @@ service cloud.firestore {
 
     match /review_notes/{noteId} {
       allow read, create, update: if staff();
-      allow delete: if finalDecision();
+      allow delete: if hiringManager();
     }
 
     match /account_notes/{noteId} {
@@ -111,11 +134,11 @@ service cloud.firestore {
 
     match /interviews/{interviewId} {
       allow read: if activeProfile() && (staff() || resource.data.applicantUid == request.auth.uid);
-      allow create, update, delete: if finalDecision();
+      allow create, update, delete: if hiringManager();
     }
 
     match /audit_logs/{logId} {
-      allow read: if staff();
+      allow read: if auditReader();
       allow create: if activeProfile();
       allow update, delete: if false;
     }
